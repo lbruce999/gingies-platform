@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Request a quote from Gingies Home Solutions for plumbing, electrical, carpentry, and general home repair projects.">
+  <title>Contact Gingies Home Solutions | Request a Quote</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<header class="site-header">
+  <div class="nav-container">
+    <a class="brand" href="index.html" aria-label="Gingies Home Solutions home">
+      <span class="logo-placeholder" aria-hidden="true">GH</span>
+      <span class="site-title">Gingies Home Solutions</span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Toggle navigation">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <nav id="site-nav" class="site-nav" aria-label="Primary navigation">
+      <a href="index.html">Home</a>
+      <a href="services.html">Services</a>
+      <a href="contact.html" class="active">Contact</a>
+      <a href="dashboard.html">Dashboard</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="contact-section" aria-labelledby="quote-heading">
+    <h1 id="quote-heading">Request a Quote</h1>
+    <p class="form-intro">Share your project details and we will get back to you quickly with a clear estimate.</p>
+
+    <form id="quoteForm" novalidate>
+      <label for="fullName">Name</label>
+      <input id="fullName" name="fullName" type="text" autocomplete="name" required>
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="email" required>
+
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" autocomplete="tel">
+
+      <label for="city">City</label>
+      <input id="city" name="city" type="text" autocomplete="address-level2" required>
+
+      <label for="serviceNeeded">Service Needed</label>
+      <select id="serviceNeeded" name="serviceNeeded" required>
+        <option value="">Select a service</option>
+        <option>Plumbing</option>
+        <option>Electrical</option>
+        <option>Carpentry</option>
+        <option>General Repairs</option>
+      </select>
+
+      <label for="details">Project Details</label>
+      <textarea id="details" name="details" rows="5" required></textarea>
+
+      <button type="submit" class="submit-button">Submit Request</button>
+      <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-content">
+    <p class="footer-company">Gingies Home Solutions</p>
+    <p class="footer-tagline">Reliable repairs and honest workmanship for every home project.</p>
+    <p class="footer-contact">
+      Phone: <a href="tel:+15550190123">(555) 019-0123</a> |
+      Email: <a href="mailto:hello@gingieshomesolutions.com">hello@gingieshomesolutions.com</a>
+    </p>
+    <p class="footer-area">Service Area: Greater Metro Area</p>
+    <p class="footer-copy">&copy; 2026 Gingies Home Solutions. All rights reserved.</p>
+  </div>
+</footer>
+
+<script src="js/script.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Contractor dashboard for Gingies Home Solutions to manage incoming service requests and job status.">
+  <title>Contractor Dashboard | Gingies Home Solutions</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
+</head>
+
+<body class="dashboard-body">
+<div class="dashboard-app" id="dashboardApp">
+  <aside class="dashboard-sidebar" id="dashboardSidebar" aria-label="Dashboard navigation">
+    <div class="sidebar-brand">
+      <span class="logo-placeholder" aria-hidden="true">GH</span>
+      <div>
+        <p class="sidebar-brand-title">Gingies</p>
+        <p class="sidebar-brand-subtitle">Contractor Platform</p>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="sidebar-link active" href="#overview">
+        <span>Overview</span>
+      </a>
+      <a class="sidebar-link" href="#service-requests">
+        <span>Service Requests</span>
+        <span class="sidebar-indicator">
+          <span class="status-dot dot-new" aria-hidden="true"></span>
+          <span class="sidebar-count" id="sidebarNewCount">0</span>
+        </span>
+      </a>
+      <a class="sidebar-link" href="#available-jobs">
+        <span>Available Jobs</span>
+      </a>
+      <a class="sidebar-link" href="#schedule">
+        <span>Schedule</span>
+        <span class="sidebar-indicator">
+          <span class="status-dot dot-scheduled" aria-hidden="true"></span>
+          <span class="sidebar-count" id="sidebarScheduledCount">0</span>
+        </span>
+      </a>
+      <a class="sidebar-link" href="#customers">
+        <span>Customers</span>
+      </a>
+      <a class="sidebar-link" href="#reports">
+        <span>Reports</span>
+        <span class="sidebar-indicator">
+          <span class="status-dot dot-completed" aria-hidden="true"></span>
+          <span class="sidebar-count" id="sidebarCompletedCount">0</span>
+        </span>
+      </a>
+      <a class="sidebar-link" href="#admin-panel">
+        <span>Admin Panel</span>
+      </a>
+    </nav>
+
+    <a class="sidebar-back-link" href="index.html">Back to Website</a>
+  </aside>
+
+  <div class="dashboard-workspace">
+    <header class="dashboard-topbar">
+      <button id="sidebarToggle" class="app-menu-toggle" type="button" aria-expanded="false" aria-controls="dashboardSidebar" aria-label="Open sidebar">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <h1 class="dashboard-title">Dashboard Overview</h1>
+
+      <div class="topbar-right">
+        <div id="topbarAlertBadge" class="topbar-alert">
+          <span>New Request Alert</span>
+          <strong id="topbarNewAlertCount">0</strong>
+        </div>
+        <div class="topbar-user">Vance</div>
+      </div>
+    </header>
+
+    <main class="dashboard-content">
+      <section id="overview" class="profile-earnings-grid" aria-label="Contractor profile and earnings">
+        <article class="contractor-profile-card">
+          <h2>Contractor Profile</h2>
+          <div class="profile-row"><span>Name</span><strong id="profileName">--</strong></div>
+          <div class="profile-row"><span>Rating</span><strong id="profileRating">--</strong></div>
+          <div class="profile-row"><span>Jobs Completed</span><strong id="profileCompleted">--</strong></div>
+          <div class="profile-row"><span>Active Jobs</span><strong id="profileActive">--</strong></div>
+          <div class="profile-row"><span>Service Area</span><strong id="profileArea">--</strong></div>
+        </article>
+
+        <article class="earnings-widget" id="reports">
+          <h2>Contractor Earnings</h2>
+          <div class="earnings-stats">
+            <div class="earning-item"><span>Today</span><strong id="earningsToday">$0</strong></div>
+            <div class="earning-item"><span>This Week</span><strong id="earningsWeek">$0</strong></div>
+            <div class="earning-item"><span>This Month</span><strong id="earningsMonth">$0</strong></div>
+            <div class="earning-item"><span>Pending Payouts</span><strong id="earningsPending">$0</strong></div>
+          </div>
+          <div class="earnings-chart" aria-label="Earnings chart placeholder">
+            <div class="chart-row"><span>Today</span><div class="chart-track"><div class="chart-bar" id="barToday"></div></div></div>
+            <div class="chart-row"><span>Week</span><div class="chart-track"><div class="chart-bar" id="barWeek"></div></div></div>
+            <div class="chart-row"><span>Month</span><div class="chart-track"><div class="chart-bar" id="barMonth"></div></div></div>
+            <div class="chart-row"><span>Pending</span><div class="chart-track"><div class="chart-bar" id="barPending"></div></div></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="metrics-section" aria-label="Job and revenue metrics">
+        <div class="metrics-grid">
+          <article class="metric-card">
+            <span class="metric-icon" aria-hidden="true">NR</span>
+            <p class="metric-label">New Requests</p>
+            <p class="metric-value" id="metricNewRequests">0</p>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-icon" aria-hidden="true">SJ</span>
+            <p class="metric-label">Scheduled Jobs</p>
+            <p class="metric-value" id="metricScheduledJobs">0</p>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-icon" aria-hidden="true">CJ</span>
+            <p class="metric-label">Completed Jobs</p>
+            <p class="metric-value" id="metricCompletedJobs">0</p>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-icon" aria-hidden="true">$$</span>
+            <p class="metric-label">Revenue This Week</p>
+            <p class="metric-value" id="metricWeeklyRevenue">$0</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="available-jobs-panel" id="available-jobs" aria-labelledby="availableJobsHeading">
+        <div class="requests-header">
+          <h2 id="availableJobsHeading">Available Jobs</h2>
+        </div>
+        <div class="available-jobs-list" id="availableJobsList"></div>
+      </section>
+
+      <section class="pipeline-panel" id="schedule" aria-labelledby="pipelineHeading">
+        <div class="requests-header">
+          <h2 id="pipelineHeading">Job Pipeline</h2>
+        </div>
+        <div class="pipeline-grid" id="pipelineBoard">
+          <article class="pipeline-column">
+            <h3>New Requests</h3>
+            <div class="pipeline-list" data-stage="new" id="pipeline-new"></div>
+          </article>
+          <article class="pipeline-column">
+            <h3>Accepted</h3>
+            <div class="pipeline-list" data-stage="accepted" id="pipeline-accepted"></div>
+          </article>
+          <article class="pipeline-column">
+            <h3>Scheduled</h3>
+            <div class="pipeline-list" data-stage="scheduled" id="pipeline-scheduled"></div>
+          </article>
+          <article class="pipeline-column">
+            <h3>In Progress</h3>
+            <div class="pipeline-list" data-stage="in_progress" id="pipeline-in-progress"></div>
+          </article>
+          <article class="pipeline-column">
+            <h3>Completed</h3>
+            <div class="pipeline-list" data-stage="completed" id="pipeline-completed"></div>
+          </article>
+        </div>
+      </section>
+
+      <div class="dashboard-panels">
+        <section class="requests-panel" id="service-requests" aria-labelledby="requests-heading">
+          <div class="requests-header">
+            <h2 id="requests-heading">Recent Service Requests</h2>
+          </div>
+
+          <div class="requests-table-wrap">
+            <table class="requests-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Service</th>
+                  <th>Location</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="requestsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="map-panel" aria-labelledby="map-heading">
+          <div class="map-header">
+            <h2 id="map-heading">Job Map</h2>
+          </div>
+          <div id="jobMap" aria-label="Map of service requests"></div>
+          <p class="map-fallback" id="mapFallback" hidden></p>
+        </section>
+      </div>
+
+      <section class="notifications-panel" aria-labelledby="notificationsHeading">
+        <div class="requests-header">
+          <h2 id="notificationsHeading">Notifications</h2>
+        </div>
+        <div class="notifications-list" id="notificationsList"></div>
+      </section>
+
+      <section id="customers" class="customers-placeholder" aria-label="Customer section placeholder">
+        <h2>Customers</h2>
+        <p>Customer management tools will appear here in the next release.</p>
+      </section>
+
+      <section id="admin-panel" class="admin-placeholder" aria-label="Admin panel placeholder">
+        <h2>Admin Panel</h2>
+        <ul>
+          <li>Manage contractors</li>
+          <li>View all jobs</li>
+          <li>Handle disputes</li>
+          <li>Track platform revenue</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <div class="dashboard-overlay" id="dashboardOverlay" aria-hidden="true"></div>
+</div>
+
+<div class="details-modal" id="detailsModal" hidden>
+  <div class="details-dialog" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
+    <div class="details-header">
+      <h2 id="detailsTitle">Request Details</h2>
+      <button type="button" id="detailsClose" class="details-close" aria-label="Close details">Close</button>
+    </div>
+
+    <dl class="details-grid">
+      <dt>Name</dt><dd data-detail="name"></dd>
+      <dt>Service</dt><dd data-detail="service"></dd>
+      <dt>Location</dt><dd data-detail="city"></dd>
+      <dt>Date</dt><dd data-detail="date"></dd>
+      <dt>Status</dt><dd data-detail="status"></dd>
+      <dt>Email</dt><dd data-detail="email"></dd>
+      <dt>Phone</dt><dd data-detail="phone"></dd>
+      <dt>Project Details</dt><dd data-detail="details"></dd>
+    </dl>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="js/script.js"></script>
+
+</body>
+</html>
