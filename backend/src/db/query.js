@@ -1,20 +1,24 @@
-import { pool } from "./pool.js";
+import { pool, sql } from "./pool.js";
 
 export async function query(text, params) {
   return pool.query(text, params);
 }
 
+// Some services pass `query` where an object with `.query()` is expected.
+query.query = query;
+
 export async function withTransaction(handler) {
-  var client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    var result = await handler(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
+  return sql.begin(async function (tx) {
+    var client = {
+      query: async function (statement, statementParams) {
+        var rows = await tx.unsafe(statement, statementParams || []);
+        return {
+          rows: rows,
+          rowCount: Array.isArray(rows) ? rows.length : 0
+        };
+      }
+    };
+
+    return handler(client);
+  });
 }

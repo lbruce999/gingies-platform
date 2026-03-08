@@ -24,15 +24,18 @@ app.use(helmet());
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"));
 
-app.get("/api/health", async function (req, res, next) {
+app.get("/api/health", async function (req, res) {
   try {
-    var dbResult = await query("SELECT NOW() AS now");
+    await query("SELECT 1");
     res.json({
       status: "ok",
-      timestamp: dbResult.rows[0].now
+      db: "connected"
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({
+      status: "error",
+      message: error.message
+    });
   }
 });
 

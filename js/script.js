@@ -27,6 +27,7 @@ var memoryStore = {
   requests: null,
   counter: 0
 };
+var apiClient = window.GingiesApi || null;
 
 document.addEventListener("DOMContentLoaded", function () {
   initSiteNav();
@@ -83,7 +84,7 @@ function initQuoteForm() {
     return;
   }
 
-  quoteForm.addEventListener("submit", function (event) {
+  quoteForm.addEventListener("submit", async function (event) {
     event.preventDefault();
 
     var requiredFields = [fullName, email, city, serviceNeeded, details];
@@ -108,9 +109,9 @@ function initQuoteForm() {
       return;
     }
 
-    var requests = ensureRequestStore();
     var request = {
       id: nextRequestId(),
+      remoteJobId: null,
       name: fullName.value.trim(),
       email: email.value.trim(),
       phone: phone ? phone.value.trim() : "",
@@ -120,14 +121,107 @@ function initQuoteForm() {
       dateISO: new Date().toISOString(),
       status: "new"
     };
+    var requests = ensureRequestStore();
+    var submitButton = quoteForm.querySelector("button[type='submit']");
+    var submittedToApi = false;
+    var apiError = null;
+    var previousButtonText = submitButton ? submitButton.textContent : "";
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Submitting...";
+    }
+
+    try {
+      var syncedRequest = await submitQuoteToApi(request);
+      if (syncedRequest) {
+        request = syncedRequest;
+        submittedToApi = true;
+      }
+    } catch (error) {
+      apiError = error;
+      console.error("Failed to submit quote to API:", error);
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = previousButtonText || "Submit Request";
+      }
+    }
 
     requests.unshift(request);
     writeRequests(requests);
 
-    formMessage.textContent = "Thanks. Your quote request was submitted successfully.";
-    formMessage.className = "form-message success";
+    if (submittedToApi) {
+      formMessage.textContent = "Thanks. Your quote request was submitted successfully.";
+      formMessage.className = "form-message success";
+    } else if (apiError) {
+      formMessage.textContent =
+        "Your request was saved locally. Live server sync is temporarily unavailable.";
+      formMessage.className = "form-message error";
+    } else {
+      formMessage.textContent = "Thanks. Your quote request was saved locally.";
+      formMessage.className = "form-message success";
+    }
+
     quoteForm.reset();
   });
+}
+
+async function submitQuoteToApi(request) {
+  if (!apiClient || typeof apiClient.createJob !== "function") {
+    return null;
+  }
+
+  var response = await apiClient.createJob(toCreateJobPayload(request));
+  if (!response || !response.job) {
+    return null;
+  }
+
+  return toLocalRequestFromApiJob(response.job, request);
+}
+
+function toCreateJobPayload(request) {
+  return {
+    name: request.name,
+    email: request.email,
+    phone: request.phone || undefined,
+    service: request.service,
+    description: request.details,
+    city: request.city
+  };
+}
+
+function toLocalRequestFromApiJob(job, fallback) {
+  var current = fallback && typeof fallback === "object" ? fallback : {};
+  var remoteJobId = job && job.id ? String(job.id) : getRemoteJobId(current);
+  var createdAt = toIsoDateOrFallback(job ? job.createdAt : null, current.dateISO);
+
+  return {
+    id: remoteJobId || (current.id ? String(current.id) : nextRequestId()),
+    remoteJobId: remoteJobId || null,
+    name: job && job.customerName ? String(job.customerName) : current.name || "Unknown Customer",
+    email: job && job.customerEmail ? String(job.customerEmail) : current.email || "",
+    phone: job && job.customerPhone ? String(job.customerPhone) : current.phone || "",
+    service: normalizeService(job && job.serviceType ? String(job.serviceType) : current.service || "General Repairs"),
+    city: job && job.city && String(job.city).trim() ? String(job.city).trim() : current.city || "Unknown",
+    details: job && job.description ? String(job.description) : current.details || "",
+    dateISO: createdAt,
+    status: normalizeStatus(job && job.status ? String(job.status) : current.status || "new")
+  };
+}
+
+function toIsoDateOrFallback(value, fallback) {
+  var parsedValue = Date.parse(value || "");
+  if (!Number.isNaN(parsedValue)) {
+    return new Date(parsedValue).toISOString();
+  }
+
+  var parsedFallback = Date.parse(fallback || "");
+  if (!Number.isNaN(parsedFallback)) {
+    return new Date(parsedFallback).toISOString();
+  }
+
+  return new Date().toISOString();
 }
 
 function initDashboardApp() {
@@ -181,6 +275,99 @@ function initDashboardApp() {
 
   bindDashboardEvents(state, elements);
   renderDashboard(state, elements);
+  syncDashboardRequests(state, elements);
+}
+
+async function syncDashboardRequests(state, elements) {
+  if (!apiClient || typeof apiClient.getJob !== "function") {
+    return;
+  }
+
+  try {
+    var syncResult = await syncRequestsFromApi(state.requests);
+    if (!syncResult.changed) {
+      return;
+    }
+
+    state.requests = syncResult.requests;
+    writeRequests(state.requests);
+    renderDashboard(state, elements);
+  } catch (error) {
+    console.error("Failed to sync dashboard data from API:", error);
+  }
+}
+
+async function syncRequestsFromApi(requests) {
+  if (!Array.isArray(requests) || requests.length === 0) {
+    return {
+      changed: false,
+      requests: requests
+    };
+  }
+
+  var candidates = requests
+    .map(function (request, index) {
+      var remoteJobId = getRemoteJobId(request);
+      if (!remoteJobId || !request.email) {
+        return null;
+      }
+      return {
+        index: index,
+        remoteJobId: remoteJobId,
+        email: request.email
+      };
+    })
+    .filter(Boolean);
+
+  if (candidates.length === 0) {
+    return {
+      changed: false,
+      requests: requests
+    };
+  }
+
+  var results = await Promise.all(
+    candidates.map(function (candidate) {
+      return apiClient
+        .getJob(candidate.remoteJobId, candidate.email)
+        .then(function (payload) {
+          return {
+            candidate: candidate,
+            payload: payload
+          };
+        })
+        .catch(function () {
+          return null;
+        });
+    })
+  );
+
+  var next = requests.slice();
+  var changed = false;
+
+  results.forEach(function (result) {
+    if (!result || !result.payload || !result.payload.job) {
+      return;
+    }
+
+    var current = next[result.candidate.index];
+    if (!current) {
+      return;
+    }
+
+    var updated = toLocalRequestFromApiJob(result.payload.job, current);
+    if (JSON.stringify(updated) === JSON.stringify(current)) {
+      return;
+    }
+
+    next[result.candidate.index] = updated;
+    changed = true;
+  });
+
+  return {
+    changed: changed,
+    requests: next
+  };
 }
 
 function bindDashboardEvents(state, elements) {
@@ -936,9 +1123,18 @@ function normalizeStatus(status) {
 function normalizeRequest(raw, index) {
   var safe = raw && typeof raw === "object" ? raw : {};
   var parsedDate = Date.parse(safe.dateISO);
+  var id = safe.id ? String(safe.id) : "legacy-" + index + "-" + Date.now();
+  var remoteJobId = "";
+
+  if (safe.remoteJobId && isUuid(safe.remoteJobId)) {
+    remoteJobId = String(safe.remoteJobId);
+  } else if (isUuid(id)) {
+    remoteJobId = id;
+  }
 
   return {
-    id: safe.id ? String(safe.id) : "legacy-" + index + "-" + Date.now(),
+    id: id,
+    remoteJobId: remoteJobId || null,
     name: safe.name ? String(safe.name) : "Unknown Customer",
     email: safe.email ? String(safe.email) : "",
     phone: safe.phone ? String(safe.phone) : "",
@@ -1115,6 +1311,26 @@ function hasLocalStorage() {
   }
 
   return storageAvailableCache;
+}
+
+function getRemoteJobId(request) {
+  if (!request || typeof request !== "object") {
+    return "";
+  }
+
+  if (request.remoteJobId && isUuid(request.remoteJobId)) {
+    return String(request.remoteJobId);
+  }
+
+  if (request.id && isUuid(request.id)) {
+    return String(request.id);
+  }
+
+  return "";
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
 
 function getCityCoords(city) {
