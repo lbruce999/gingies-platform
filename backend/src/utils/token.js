@@ -5,7 +5,8 @@ export function createAccessToken(user) {
   return jwt.sign(
     {
       role: user.role,
-      email: user.email
+      email: user.email,
+      username: user.username
     },
     config.jwtSecret,
     {

@@ -71,7 +71,7 @@ function getBearerToken(authorization) {
 
 async function findActiveUser(userId) {
   var result = await query(
-    "SELECT id, email, role, is_active FROM users WHERE id = $1 AND is_active = true LIMIT 1",
+    "SELECT id, email, username, role, is_active FROM users WHERE id = $1 AND is_active = true LIMIT 1",
     [userId]
   );
   return result.rows[0] || null;

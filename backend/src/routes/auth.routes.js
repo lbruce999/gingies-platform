@@ -10,11 +10,21 @@ import { logAuditEvent } from "../services/audit.js";
 
 var router = express.Router();
 
+var usernameSchema = z.string()
+  .trim()
+  .min(3)
+  .max(32)
+  .regex(/^[a-zA-Z0-9_.-]+$/, "Username may only contain letters, numbers, dots, underscores, and hyphens")
+  .transform(function (value) {
+    return value.toLowerCase();
+  });
+
 var registerSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email(),
+  username: usernameSchema,
   password: z.string().min(8),
-  role: z.enum(["homeowner", "contractor", "admin"]),
-  name: z.string().min(1),
+  role: z.enum(["homeowner", "contractor", "admin"]).default("homeowner"),
+  name: z.string().trim().min(1).optional(),
   phone: z.string().min(3).optional(),
   serviceAreaCity: z.string().min(1).optional(),
   serviceAreaState: z.string().min(1).max(2).optional(),
@@ -22,27 +32,35 @@ var registerSchema = z.object({
 });
 
 var loginSchema = z.object({
-  email: z.string().email(),
+  identifier: z.string().trim().min(1).transform(function (value) {
+    return value.toLowerCase();
+  }),
   password: z.string().min(1)
 });
 
-router.post("/register", validate(registerSchema), async function (req, res, next) {
+async function registerUser(req, res, next) {
   try {
     var body = req.body;
+    var displayName = body.name || body.username;
 
-    var existing = await query("SELECT id FROM users WHERE email = $1 LIMIT 1", [body.email]);
-    if (existing.rowCount > 0) {
+    var existingEmail = await query("SELECT id FROM users WHERE email = $1 LIMIT 1", [body.email]);
+    if (existingEmail.rowCount > 0) {
       throw httpError(409, "Email already registered");
+    }
+
+    var existingUsername = await query("SELECT id FROM users WHERE username = $1 LIMIT 1", [body.username]);
+    if (existingUsername.rowCount > 0) {
+      throw httpError(409, "Username already registered");
     }
 
     var passwordHash = await bcrypt.hash(body.password, 12);
 
     var user = await withTransaction(async function (client) {
       var userResult = await client.query(
-        `INSERT INTO users (email, password_hash, role)
-         VALUES ($1, $2, $3)
-         RETURNING id, email, role, created_at`,
-        [body.email, passwordHash, body.role]
+        `INSERT INTO users (email, username, password_hash, role)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, email, username, role, created_at`,
+        [body.email, body.username, passwordHash, body.role]
       );
 
       var createdUser = userResult.rows[0];
@@ -51,7 +69,7 @@ router.post("/register", validate(registerSchema), async function (req, res, nex
         await client.query(
           `INSERT INTO homeowners (user_id, name, email, phone)
            VALUES ($1, $2, $3, $4)`,
-          [createdUser.id, body.name, body.email, body.phone || null]
+          [createdUser.id, displayName, body.email, body.phone || null]
         );
       }
 
@@ -66,7 +84,7 @@ router.post("/register", validate(registerSchema), async function (req, res, nex
            RETURNING id`,
           [
             createdUser.id,
-            body.name,
+            displayName,
             body.phone || null,
             body.serviceAreaCity,
             body.serviceAreaState || null
@@ -108,23 +126,32 @@ router.post("/register", validate(registerSchema), async function (req, res, nex
       token: token
     });
   } catch (error) {
+    var constraint = error && (error.constraint || error.constraint_name);
+    if (error && error.code === "23505" && constraint === "users_email_key") {
+      return next(httpError(409, "Email already registered"));
+    }
+
+    if (error && error.code === "23505" && constraint === "users_username_key") {
+      return next(httpError(409, "Username already registered"));
+    }
+
     next(error);
   }
-});
+}
 
-router.post("/login", validate(loginSchema), async function (req, res, next) {
+async function loginUser(req, res, next) {
   try {
     var body = req.body;
     var result = await query(
-      `SELECT id, email, password_hash, role, is_active
+      `SELECT id, email, username, password_hash, role, is_active
        FROM users
-       WHERE email = $1
+       WHERE email = $1 OR username = $1
        LIMIT 1`,
-      [body.email]
+      [body.identifier]
     );
 
     if (result.rowCount === 0) {
-      throw httpError(401, "Invalid email or password");
+      throw httpError(401, "Invalid credentials");
     }
 
     var user = result.rows[0];
@@ -134,7 +161,7 @@ router.post("/login", validate(loginSchema), async function (req, res, next) {
 
     var passwordOk = await bcrypt.compare(body.password, user.password_hash);
     if (!passwordOk) {
-      throw httpError(401, "Invalid email or password");
+      throw httpError(401, "Invalid credentials");
     }
 
     var token = createAccessToken(user);
@@ -143,6 +170,7 @@ router.post("/login", validate(loginSchema), async function (req, res, next) {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         role: user.role
       },
       token: token
@@ -150,7 +178,11 @@ router.post("/login", validate(loginSchema), async function (req, res, next) {
   } catch (error) {
     next(error);
   }
-});
+}
+
+router.post("/register", validate(registerSchema), registerUser);
+router.post("/signup", validate(registerSchema), registerUser);
+router.post("/login", validate(loginSchema), loginUser);
 
 router.post("/logout", authRequired, async function (req, res, next) {
   try {
@@ -208,6 +240,7 @@ router.get("/me", authRequired, async function (req, res, next) {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         role: user.role
       },
       profile: profile
