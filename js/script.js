@@ -21,6 +21,8 @@ var CONTRACTOR_PROFILE = {
   serviceArea: "Greater Columbus Area",
   homeCity: "Columbus"
 };
+var LOGIN_PAGE_PATH = "loginPage.html";
+var DASHBOARD_PAGE_PATH = "dashboard.html";
 
 var storageAvailableCache = null;
 var memoryStore = {
@@ -32,6 +34,8 @@ var apiClient = window.GingiesApi || null;
 document.addEventListener("DOMContentLoaded", function () {
   initSiteNav();
   initQuoteForm();
+  initSignupForm();
+  initLoginForm();
   initDashboardApp();
 });
 
@@ -167,6 +171,164 @@ function initQuoteForm() {
   });
 }
 
+function initSignupForm() {
+  var signupForm = document.getElementById("signupForm");
+  var signupMessage = document.getElementById("signupMessage");
+
+  if (!signupForm || !signupMessage) {
+    return;
+  }
+
+  if (!apiClient || typeof apiClient.signup !== "function") {
+    setFormMessage(signupMessage, "Authentication is unavailable right now. Please try again later.", "error");
+    return;
+  }
+
+  if (typeof apiClient.isAuthenticated === "function" && apiClient.isAuthenticated()) {
+    window.location.replace(DASHBOARD_PAGE_PATH);
+    return;
+  }
+
+  var username = document.getElementById("signupUsername");
+  var email = document.getElementById("signupEmail");
+  var password = document.getElementById("signupPassword");
+
+  if (!username || !email || !password) {
+    return;
+  }
+
+  signupForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+
+    [username, email, password].forEach(clearInvalid);
+    clearFormMessage(signupMessage);
+
+    var hasError = false;
+    if (!username.value.trim()) {
+      markInvalid(username);
+      hasError = true;
+    }
+    if (!email.value.trim() || !isValidEmail(email.value.trim())) {
+      markInvalid(email);
+      hasError = true;
+    }
+    if (password.value.length < 8) {
+      markInvalid(password);
+      hasError = true;
+    }
+
+    if (hasError) {
+      setFormMessage(signupMessage, "Enter a username, a valid email, and a password with at least 8 characters.", "error");
+      return;
+    }
+
+    var submitButton = signupForm.querySelector("button[type='submit']");
+    var previousLabel = submitButton ? submitButton.textContent : "";
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Creating account...";
+    }
+
+    try {
+      await apiClient.signup({
+        username: username.value.trim(),
+        email: email.value.trim(),
+        password: password.value
+      });
+
+      setFormMessage(signupMessage, "Account created. Redirecting to your dashboard...", "success");
+      window.setTimeout(function () {
+        window.location.assign(DASHBOARD_PAGE_PATH);
+      }, 350);
+    } catch (error) {
+      setFormMessage(signupMessage, getRequestErrorMessage(error, "Unable to create your account."), "error");
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = previousLabel || "Create account";
+      }
+    }
+  });
+}
+
+function initLoginForm() {
+  var loginForm = document.getElementById("loginForm");
+  var loginMessage = document.getElementById("loginMessage");
+
+  if (!loginForm || !loginMessage) {
+    return;
+  }
+
+  if (!apiClient || typeof apiClient.login !== "function") {
+    setFormMessage(loginMessage, "Authentication is unavailable right now. Please try again later.", "error");
+    return;
+  }
+
+  if (typeof apiClient.isAuthenticated === "function" && apiClient.isAuthenticated()) {
+    window.location.replace(DASHBOARD_PAGE_PATH);
+    return;
+  }
+
+  var identifier = document.getElementById("identifier");
+  var password = document.getElementById("password");
+
+  if (!identifier || !password) {
+    return;
+  }
+
+  loginForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+
+    [identifier, password].forEach(clearInvalid);
+    clearFormMessage(loginMessage);
+
+    var hasError = false;
+    if (!identifier.value.trim()) {
+      markInvalid(identifier);
+      hasError = true;
+    }
+    if (!password.value) {
+      markInvalid(password);
+      hasError = true;
+    }
+
+    if (hasError) {
+      setFormMessage(loginMessage, "Enter your email or username and password.", "error");
+      return;
+    }
+
+    var submitButton = loginForm.querySelector("button[type='submit']");
+    var previousLabel = submitButton ? submitButton.textContent : "";
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Signing in...";
+    }
+
+    try {
+      await apiClient.login({
+        identifier: identifier.value.trim(),
+        password: password.value
+      });
+
+      setFormMessage(loginMessage, "Login successful. Redirecting...", "success");
+      window.setTimeout(function () {
+        window.location.assign(DASHBOARD_PAGE_PATH);
+      }, 250);
+    } catch (error) {
+      setFormMessage(loginMessage, getRequestErrorMessage(error, "Unable to sign in."), "error");
+      markInvalid(identifier);
+      markInvalid(password);
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = previousLabel || "Sign in";
+      }
+    }
+  });
+}
+
 async function submitQuoteToApi(request) {
   if (!apiClient || typeof apiClient.createJob !== "function") {
     return null;
@@ -230,14 +392,21 @@ function initDashboardApp() {
     return;
   }
 
+  if (!apiClient || typeof apiClient.getStoredToken !== "function" || !apiClient.getStoredToken()) {
+    redirectToLogin();
+    return;
+  }
+
   var state = {
     requests: ensureRequestStore(),
     map: null,
-    markerLayer: null
+    markerLayer: null,
+    authUser: getCurrentAuthUser()
   };
 
   var elements = {
     app: app,
+    loading: document.getElementById("dashboardLoading"),
     overlay: document.getElementById("dashboardOverlay"),
     sidebarToggle: document.getElementById("sidebarToggle"),
     sidebarLinks: Array.prototype.slice.call(document.querySelectorAll(".sidebar-link")),
@@ -270,11 +439,18 @@ function initDashboardApp() {
     barMonth: document.getElementById("barMonth"),
     barPending: document.getElementById("barPending"),
     detailsModal: document.getElementById("detailsModal"),
-    detailsClose: document.getElementById("detailsClose")
+    detailsClose: document.getElementById("detailsClose"),
+    topbarUser: document.getElementById("topbarUser"),
+    logoutButton: document.getElementById("logoutButton")
   };
 
   bindDashboardEvents(state, elements);
   renderDashboard(state, elements);
+  hydrateDashboardSession(state, elements).finally(function () {
+    if (!state.redirecting) {
+      revealDashboard(elements);
+    }
+  });
   syncDashboardRequests(state, elements);
 }
 
@@ -371,6 +547,24 @@ async function syncRequestsFromApi(requests) {
 }
 
 function bindDashboardEvents(state, elements) {
+  if (elements.logoutButton) {
+    elements.logoutButton.addEventListener("click", async function () {
+      var previousLabel = elements.logoutButton.textContent;
+      elements.logoutButton.disabled = true;
+      elements.logoutButton.textContent = "Logging out...";
+
+      try {
+        if (apiClient && typeof apiClient.logout === "function") {
+          await apiClient.logout();
+        }
+      } finally {
+        redirectToLogin();
+        elements.logoutButton.disabled = false;
+        elements.logoutButton.textContent = previousLabel;
+      }
+    });
+  }
+
   if (elements.sidebarToggle) {
     elements.sidebarToggle.addEventListener("click", function () {
       var isOpen = !elements.app.classList.contains("sidebar-open");
@@ -584,6 +778,7 @@ function closeDetailsModal(elements) {
 }
 
 function renderDashboard(state, elements) {
+  renderAuthenticatedUser(state, elements);
   renderMetrics(state.requests, elements);
   renderSidebarIndicators(state.requests, elements);
   renderAlertBadge(state.requests, elements);
@@ -594,6 +789,47 @@ function renderDashboard(state, elements) {
   renderPipeline(state.requests, elements);
   renderNotifications(state.requests, elements);
   renderMap(state, elements);
+}
+
+async function hydrateDashboardSession(state, elements) {
+  if (!apiClient || typeof apiClient.getCurrentUser !== "function") {
+    return;
+  }
+
+  try {
+    var response = await apiClient.getCurrentUser();
+    if (!response || !response.user) {
+      return;
+    }
+
+    state.authUser = response.user;
+    renderDashboard(state, elements);
+  } catch (error) {
+    console.error("Failed to load the current user session:", error);
+
+    if (error && (error.status === 401 || error.status === 403)) {
+      state.redirecting = true;
+      if (apiClient && typeof apiClient.clearSession === "function") {
+        apiClient.clearSession();
+      }
+      redirectToLogin();
+    }
+  }
+}
+
+function renderAuthenticatedUser(state, elements) {
+  if (!elements.topbarUser) {
+    return;
+  }
+
+  var user = state.authUser || getCurrentAuthUser();
+  var label = "Account";
+
+  if (user) {
+    label = user.username || user.email || label;
+  }
+
+  elements.topbarUser.textContent = label;
 }
 
 function renderMetrics(requests, elements) {
@@ -974,12 +1210,68 @@ function createActionButton(text, className, action, id, disabled) {
   return button;
 }
 
+function getCurrentAuthUser() {
+  if (!apiClient) {
+    return null;
+  }
+
+  if (typeof apiClient.getSessionUser === "function") {
+    return apiClient.getSessionUser();
+  }
+
+  if (typeof apiClient.getStoredUser === "function") {
+    return apiClient.getStoredUser();
+  }
+
+  return null;
+}
+
+function revealDashboard(elements) {
+  if (elements.loading) {
+    elements.loading.hidden = true;
+  }
+
+  if (elements.app) {
+    elements.app.hidden = false;
+  }
+}
+
+function redirectToLogin() {
+  window.location.replace(LOGIN_PAGE_PATH);
+}
+
 function markInvalid(field) {
   field.classList.add("field-invalid");
 }
 
 function clearInvalid(field) {
   field.classList.remove("field-invalid");
+}
+
+function setFormMessage(element, message, type) {
+  if (!element) {
+    return;
+  }
+
+  element.textContent = message;
+  element.className = "form-message " + type;
+}
+
+function clearFormMessage(element) {
+  if (!element) {
+    return;
+  }
+
+  element.textContent = "";
+  element.className = "form-message";
+}
+
+function getRequestErrorMessage(error, fallback) {
+  if (!error || typeof error.message !== "string") {
+    return fallback;
+  }
+
+  return error.message.replace(/\s+\(HTTP \d+\)$/, "") || fallback;
 }
 
 function isValidEmail(value) {

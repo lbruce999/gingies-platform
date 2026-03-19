@@ -15,7 +15,14 @@
 </head>
 
 <body class="dashboard-body">
-<div class="dashboard-app" id="dashboardApp">
+<div class="dashboard-loading" id="dashboardLoading" role="status" aria-live="polite">
+  <div class="dashboard-loading-card">
+    <strong>Checking session...</strong>
+    <span>Loading your dashboard.</span>
+  </div>
+</div>
+
+<div class="dashboard-app" id="dashboardApp" hidden>
   <aside class="dashboard-sidebar" id="dashboardSidebar" aria-label="Dashboard navigation">
     <div class="sidebar-brand">
       <span class="logo-placeholder" aria-hidden="true">GH</span>
@@ -79,7 +86,10 @@
           <span>New Request Alert</span>
           <strong id="topbarNewAlertCount">0</strong>
         </div>
-        <div class="topbar-user">Vance</div>
+        <div class="topbar-user-group">
+          <div class="topbar-user" id="topbarUser">Account</div>
+          <button id="logoutButton" class="topbar-logout" type="button">Log out</button>
+        </div>
       </div>
     </header>
 

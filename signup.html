@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Create a Gingies Home Solutions account to access your dashboard and manage service requests.">
+  <title>Sign Up | Gingies Home Solutions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="login-body">
+  <main class="login-page">
+    <section class="login-shell" aria-labelledby="signup-hero-title">
+      <aside class="login-showcase" aria-label="Account benefits">
+        <a class="login-brand" href="index.html" aria-label="Return to Gingies Home Solutions home">
+          <span class="logo-placeholder" aria-hidden="true">GH</span>
+          <span class="login-brand-copy">
+            <span class="login-brand-name">Gingies Home Solutions</span>
+            <span class="login-brand-tagline">Customer Portal</span>
+          </span>
+        </a>
+
+        <div class="login-intro">
+          <p class="login-eyebrow">Create your account</p>
+          <h1 id="signup-hero-title">Open your account and keep every request, message, and update within reach.</h1>
+          <p class="login-lead">
+            Sign up in a minute, jump straight into your dashboard, and keep your project activity in one place.
+          </p>
+        </div>
+
+        <div class="login-showcase-content">
+          <div class="login-stats" aria-label="Portal highlights">
+            <article class="login-stat">
+              <strong>1 min</strong>
+              <span>Fast account setup</span>
+            </article>
+            <article class="login-stat">
+              <strong>24/7</strong>
+              <span>Access to your dashboard</span>
+            </article>
+          </div>
+
+          <div class="login-highlights">
+            <article class="login-highlight">
+              <p class="login-highlight-title">Track requests clearly</p>
+              <p>Keep service requests, updates, and contact details connected to one account.</p>
+            </article>
+            <article class="login-highlight">
+              <p class="login-highlight-title">Pick up where you left off</p>
+              <p>Come back anytime and continue from the same dashboard without starting over.</p>
+            </article>
+          </div>
+        </div>
+      </aside>
+
+      <section class="login-panel" aria-labelledby="signup-heading">
+        <div class="login-card">
+          <a class="login-back-link" href="index.html">Back to website</a>
+          <p class="login-kicker">New here?</p>
+          <h2 id="signup-heading">Create your account</h2>
+          <p class="login-copy">Choose a username, add your email, and set a password to get started.</p>
+
+          <form id="signupForm" class="login-form" novalidate>
+            <label for="signupUsername">Username</label>
+            <input
+              id="signupUsername"
+              name="username"
+              type="text"
+              placeholder="Choose a username"
+              autocomplete="username"
+              required
+            >
+
+            <label for="signupEmail">Email address</label>
+            <input
+              id="signupEmail"
+              name="email"
+              type="email"
+              placeholder="name@example.com"
+              autocomplete="email"
+              required
+            >
+
+            <label for="signupPassword">Password</label>
+            <input
+              id="signupPassword"
+              name="password"
+              type="password"
+              placeholder="At least 8 characters"
+              autocomplete="new-password"
+              required
+            >
+
+            <button type="submit" class="submit-button login-submit">Create account</button>
+            <p id="signupMessage" class="form-message" role="status" aria-live="polite"></p>
+          </form>
+
+          <div class="login-divider" aria-hidden="true">
+            <span>or</span>
+          </div>
+
+          <a class="login-secondary" href="loginPage.html">Sign in instead</a>
+          <p class="login-support">
+            Questions? <a href="mailto:hello@gingieshomesolutions.com">hello@gingieshomesolutions.com</a>
+          </p>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>

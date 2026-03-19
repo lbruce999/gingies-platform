@@ -2,6 +2,8 @@
   var PRODUCTION_API_BASE = "https://gingies-api.onrender.com";
   var LOCAL_API_BASE = "http://localhost:4000";
   var LOCAL_HOSTS = ["localhost", "127.0.0.1"];
+  var TOKEN_STORAGE_KEY = "gingies.auth.token";
+  var USER_STORAGE_KEY = "gingies.auth.user";
 
   function isLocalHost(hostname) {
     if (!hostname) {
@@ -75,6 +77,132 @@
     return responseBody;
   }
 
+  function getStorage() {
+    try {
+      return global.localStorage || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getStoredToken() {
+    var storage = getStorage();
+    if (!storage) {
+      return "";
+    }
+
+    return storage.getItem(TOKEN_STORAGE_KEY) || "";
+  }
+
+  function setStoredToken(token) {
+    var storage = getStorage();
+    if (!storage) {
+      return;
+    }
+
+    if (!token) {
+      storage.removeItem(TOKEN_STORAGE_KEY);
+      return;
+    }
+
+    storage.setItem(TOKEN_STORAGE_KEY, String(token));
+  }
+
+  function getStoredUser() {
+    var storage = getStorage();
+    if (!storage) {
+      return null;
+    }
+
+    var raw = storage.getItem(USER_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      storage.removeItem(USER_STORAGE_KEY);
+      return null;
+    }
+  }
+
+  function setStoredUser(user) {
+    var storage = getStorage();
+    if (!storage) {
+      return;
+    }
+
+    if (!user || typeof user !== "object") {
+      storage.removeItem(USER_STORAGE_KEY);
+      return;
+    }
+
+    storage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  }
+
+  function clearSession() {
+    var storage = getStorage();
+    if (!storage) {
+      return;
+    }
+
+    storage.removeItem(TOKEN_STORAGE_KEY);
+    storage.removeItem(USER_STORAGE_KEY);
+  }
+
+  function saveSession(payload) {
+    if (payload && payload.token) {
+      setStoredToken(payload.token);
+    }
+    if (payload && payload.user) {
+      setStoredUser(payload.user);
+    }
+    return payload;
+  }
+
+  function buildAuthHeaders(headers) {
+    var nextHeaders = headers ? Object.assign({}, headers) : {};
+    var token = getStoredToken();
+
+    if (token) {
+      nextHeaders.Authorization = "Bearer " + token;
+    }
+
+    return nextHeaders;
+  }
+
+  function decodeBase64Url(value) {
+    if (!value) {
+      return "";
+    }
+
+    var normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    var padded = normalized + "===".slice((normalized.length + 3) % 4);
+    return global.atob(padded);
+  }
+
+  function decodeToken(token) {
+    if (!token || token.split(".").length < 2 || typeof global.atob !== "function") {
+      return null;
+    }
+
+    try {
+      var payload = decodeBase64Url(token.split(".")[1]);
+      return JSON.parse(payload);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getSessionUser() {
+    return getStoredUser() || decodeToken(getStoredToken());
+  }
+
+  function isAuthenticated() {
+    return Boolean(getStoredToken());
+  }
+
   function createJob(payload) {
     return apiRequest("/api/jobs", {
       method: "POST",
@@ -90,10 +218,64 @@
     return apiRequest("/api/jobs/" + encodeURIComponent(jobId) + query);
   }
 
+  function signup(payload) {
+    return apiRequest("/api/signup", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }).then(saveSession);
+  }
+
+  function login(payload) {
+    return apiRequest("/api/login", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }).then(saveSession);
+  }
+
+  function logout() {
+    var token = getStoredToken();
+    var request = token
+      ? apiRequest("/api/logout", {
+        method: "POST",
+        headers: buildAuthHeaders()
+      })
+      : Promise.resolve(null);
+
+    return request
+      .catch(function () {
+        return null;
+      })
+      .then(function (result) {
+        clearSession();
+        return result;
+      });
+  }
+
+  function getCurrentUser() {
+    return apiRequest("/api/me", {
+      headers: buildAuthHeaders()
+    }).then(function (payload) {
+      if (payload && payload.user) {
+        setStoredUser(payload.user);
+      }
+      return payload;
+    });
+  }
+
   global.GingiesApi = {
     API_BASE: resolveApiBase(),
     apiRequest: apiRequest,
     createJob: createJob,
-    getJob: getJob
+    getJob: getJob,
+    signup: signup,
+    login: login,
+    logout: logout,
+    getCurrentUser: getCurrentUser,
+    getStoredToken: getStoredToken,
+    getStoredUser: getStoredUser,
+    getSessionUser: getSessionUser,
+    setStoredUser: setStoredUser,
+    clearSession: clearSession,
+    isAuthenticated: isAuthenticated
   };
 })(window);
