@@ -210,12 +210,61 @@
     });
   }
 
+  function createServiceRequest(payload) {
+    return apiRequest("/api/service-requests", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  }
+
   function getJob(jobId, email) {
     var query = "";
     if (email) {
       query = "?email=" + encodeURIComponent(email);
     }
     return apiRequest("/api/jobs/" + encodeURIComponent(jobId) + query);
+  }
+
+  function getContractorJobs() {
+    return apiRequest("/api/contractor/jobs", {
+      headers: buildAuthHeaders()
+    });
+  }
+
+  function getAvailableContractorJobs() {
+    return apiRequest("/api/contractor/jobs/available", {
+      headers: buildAuthHeaders()
+    });
+  }
+
+  function getContractorNotifications() {
+    return apiRequest("/api/contractor/notifications", {
+      headers: buildAuthHeaders()
+    });
+  }
+
+  function acceptJob(jobId) {
+    return apiRequest("/api/jobs/" + encodeURIComponent(jobId) + "/accept", {
+      method: "POST",
+      headers: buildAuthHeaders()
+    });
+  }
+
+  function updateJobStatus(jobId, status) {
+    return apiRequest("/api/jobs/" + encodeURIComponent(jobId) + "/status", {
+      method: "PATCH",
+      headers: buildAuthHeaders(),
+      body: JSON.stringify({
+        status: status
+      })
+    });
+  }
+
+  function markContractorNotificationRead(notificationId) {
+    return apiRequest("/api/contractor/notifications/" + encodeURIComponent(notificationId) + "/read", {
+      method: "POST",
+      headers: buildAuthHeaders()
+    });
   }
 
   function signup(payload) {
@@ -266,7 +315,14 @@
     API_BASE: resolveApiBase(),
     apiRequest: apiRequest,
     createJob: createJob,
+    createServiceRequest: createServiceRequest,
     getJob: getJob,
+    getContractorJobs: getContractorJobs,
+    getAvailableContractorJobs: getAvailableContractorJobs,
+    getContractorNotifications: getContractorNotifications,
+    acceptJob: acceptJob,
+    updateJobStatus: updateJobStatus,
+    markContractorNotificationRead: markContractorNotificationRead,
     signup: signup,
     login: login,
     logout: logout,

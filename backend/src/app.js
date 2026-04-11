@@ -6,6 +6,7 @@ import { config } from "./config.js";
 import { query } from "./db/query.js";
 import authRoutes from "./routes/auth.routes.js";
 import jobsRoutes from "./routes/jobs.routes.js";
+import serviceRequestsRoutes from "./routes/service-requests.routes.js";
 import contractorRoutes from "./routes/contractor.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
@@ -41,6 +42,7 @@ app.get("/api/health", async function (req, res) {
 
 app.use("/api/auth", authRoutes);
 app.use("/api", authRoutes);
+app.use("/api", serviceRequestsRoutes);
 app.use("/api", jobsRoutes);
 app.use("/api/contractor", contractorRoutes);
 app.use("/api/admin", adminRoutes);

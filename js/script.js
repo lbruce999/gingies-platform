@@ -1,34 +1,5 @@
-var STORAGE_KEY = "gingies.requests.v1";
-var COUNTER_KEY = "gingies.requests.counter.v1";
-var FALLBACK_COORDS = [40.4173, -82.9071];
-var SERVICE_VALUES = {
-  Plumbing: 850,
-  Electrical: 780,
-  Carpentry: 920,
-  "General Repairs": 640
-};
-var CITY_COORDS = {
-  columbus: [39.9612, -82.9988],
-  dayton: [39.7589, -84.1916],
-  cincinnati: [39.1031, -84.512],
-  cleveland: [41.4993, -81.6944]
-};
-var STAGE_ORDER = ["new", "accepted", "scheduled", "in_progress", "completed"];
-var CONTRACTOR_PROFILE = {
-  name: "Vance Mercer",
-  rating: 4.9,
-  baseCompletedJobs: 124,
-  serviceArea: "Greater Columbus Area",
-  homeCity: "Columbus"
-};
 var LOGIN_PAGE_PATH = "loginPage.html";
 var DASHBOARD_PAGE_PATH = "dashboard.html";
-
-var storageAvailableCache = null;
-var memoryStore = {
-  requests: null,
-  counter: 0
-};
 var apiClient = window.GingiesApi || null;
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -77,98 +48,89 @@ function initQuoteForm() {
     return;
   }
 
-  var fullName = document.getElementById("fullName");
-  var email = document.getElementById("email");
-  var phone = document.getElementById("phone");
-  var city = document.getElementById("city");
-  var serviceNeeded = document.getElementById("serviceNeeded");
-  var details = document.getElementById("details");
+  var steps = Array.prototype.slice.call(quoteForm.querySelectorAll(".intake-step"));
+  var progressItems = Array.prototype.slice.call(document.querySelectorAll("[data-progress-step]"));
+  var progressFill = document.getElementById("intakeProgressFill");
+  var nextButton = document.getElementById("intakeNext");
+  var backButton = document.getElementById("intakeBack");
+  var submitButton = document.getElementById("intakeSubmit");
+  var serviceInput = document.getElementById("serviceType");
+  var serviceOptions = Array.prototype.slice.call(document.querySelectorAll(".service-option[data-service]"));
 
-  if (!fullName || !email || !city || !serviceNeeded || !details) {
+  if (!steps.length || !nextButton || !backButton || !submitButton || !serviceInput || !serviceOptions.length) {
     return;
   }
+
+  var currentStep = 0;
+
+  serviceOptions.forEach(function (button) {
+    button.addEventListener("click", function () {
+      serviceInput.value = button.getAttribute("data-service") || "";
+      serviceOptions.forEach(function (option) {
+        var isSelected = option === button;
+        option.classList.toggle("selected", isSelected);
+        option.setAttribute("aria-pressed", String(isSelected));
+      });
+      clearInvalid(document.getElementById("serviceOptions"));
+      clearFormMessage(formMessage);
+    });
+  });
+
+  nextButton.addEventListener("click", function () {
+    if (!validateIntakeStep(quoteForm, currentStep, formMessage)) {
+      focusFirstInvalid(quoteForm);
+      return;
+    }
+
+    if (currentStep < steps.length - 1) {
+      currentStep += 1;
+      showIntakeStep(currentStep, steps, progressItems, progressFill, nextButton, backButton, submitButton);
+    }
+  });
+
+  backButton.addEventListener("click", function () {
+    if (currentStep > 0) {
+      currentStep -= 1;
+      showIntakeStep(currentStep, steps, progressItems, progressFill, nextButton, backButton, submitButton);
+      clearFormMessage(formMessage);
+    }
+  });
 
   quoteForm.addEventListener("submit", async function (event) {
     event.preventDefault();
 
-    var requiredFields = [fullName, email, city, serviceNeeded, details];
-    var hasError = false;
-
-    requiredFields.forEach(function (field) {
-      clearInvalid(field);
-      if (!field.value.trim()) {
-        markInvalid(field);
-        hasError = true;
-      }
-    });
-
-    if (email.value.trim() && !isValidEmail(email.value.trim())) {
-      markInvalid(email);
-      hasError = true;
-    }
-
-    if (hasError) {
-      formMessage.textContent = "Please complete all required fields with valid information.";
-      formMessage.className = "form-message error";
+    if (!validateIntakeStep(quoteForm, currentStep, formMessage)) {
+      focusFirstInvalid(quoteForm);
       return;
     }
 
-    var request = {
-      id: nextRequestId(),
-      remoteJobId: null,
-      name: fullName.value.trim(),
-      email: email.value.trim(),
-      phone: phone ? phone.value.trim() : "",
-      service: normalizeService(serviceNeeded.value.trim()),
-      city: city.value.trim(),
-      details: details.value.trim(),
-      dateISO: new Date().toISOString(),
-      status: "new"
-    };
-    var requests = ensureRequestStore();
-    var submitButton = quoteForm.querySelector("button[type='submit']");
-    var submittedToApi = false;
-    var apiError = null;
-    var previousButtonText = submitButton ? submitButton.textContent : "";
+    clearFormMessage(formMessage);
+    submitButton.disabled = true;
+    submitButton.textContent = "Submitting...";
 
-    if (submitButton) {
-      submitButton.disabled = true;
-      submitButton.textContent = "Submitting...";
-    }
+    var payload = buildServiceRequestPayload(quoteForm);
 
     try {
-      var syncedRequest = await submitQuoteToApi(request);
-      if (syncedRequest) {
-        request = syncedRequest;
-        submittedToApi = true;
-      }
+      var response = await submitServiceRequestToApi(payload);
+      var requestId = response && response.serviceRequest && response.serviceRequest.id
+        ? " Request ID: " + response.serviceRequest.id + "."
+        : "";
+      setFormMessage(formMessage, "Request received. Gingies will review the details and follow up." + requestId, "success");
+      quoteForm.reset();
+      resetServiceOptions(serviceOptions, serviceInput);
+      currentStep = 0;
+      showIntakeStep(currentStep, steps, progressItems, progressFill, nextButton, backButton, submitButton);
     } catch (error) {
-      apiError = error;
-      console.error("Failed to submit quote to API:", error);
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = previousButtonText || "Submit Request";
-      }
-    }
-
-    requests.unshift(request);
-    writeRequests(requests);
-
-    if (submittedToApi) {
-      formMessage.textContent = "Thanks. Your quote request was submitted successfully.";
-      formMessage.className = "form-message success";
-    } else if (apiError) {
-      formMessage.textContent =
-        "Your request was saved locally. Live server sync is temporarily unavailable.";
+      console.error("Failed to submit service request to API:", error);
+      formMessage.textContent = getRequestErrorMessage(error, "We couldn't submit your request. Please try again.");
       formMessage.className = "form-message error";
-    } else {
-      formMessage.textContent = "Thanks. Your quote request was saved locally.";
-      formMessage.className = "form-message success";
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "Submit Service Request";
     }
-
-    quoteForm.reset();
   });
+
+  showIntakeStep(currentStep, steps, progressItems, progressFill, nextButton, backButton, submitButton);
 }
 
 function initSignupForm() {
@@ -329,61 +291,260 @@ function initLoginForm() {
   });
 }
 
-async function submitQuoteToApi(request) {
-  if (!apiClient || typeof apiClient.createJob !== "function") {
-    return null;
+function showIntakeStep(stepIndex, steps, progressItems, progressFill, nextButton, backButton, submitButton) {
+  steps.forEach(function (step, index) {
+    var isActive = index === stepIndex;
+    step.hidden = !isActive;
+    step.classList.toggle("active", isActive);
+  });
+
+  progressItems.forEach(function (item, index) {
+    item.classList.toggle("active", index === stepIndex);
+    item.classList.toggle("complete", index < stepIndex);
+  });
+
+  if (progressFill) {
+    progressFill.style.width = Math.round(((stepIndex + 1) / steps.length) * 100) + "%";
   }
 
-  var response = await apiClient.createJob(toCreateJobPayload(request));
-  if (!response || !response.job) {
-    return null;
+  if (backButton) {
+    backButton.hidden = stepIndex === 0;
   }
 
-  return toLocalRequestFromApiJob(response.job, request);
+  if (nextButton) {
+    nextButton.hidden = stepIndex === steps.length - 1;
+    var labels = ["Next: Choose Service", "Next: Describe Project", "Next: Contact Info"];
+    nextButton.textContent = labels[stepIndex] || "Next";
+  }
+
+  if (submitButton) {
+    submitButton.hidden = stepIndex !== steps.length - 1;
+  }
 }
 
-function toCreateJobPayload(request) {
+function validateIntakeStep(form, stepIndex, formMessage) {
+  clearStepValidation(form);
+  clearFormMessage(formMessage);
+
+  if (stepIndex === 0) {
+    return validateLocationStep(form, formMessage);
+  }
+
+  if (stepIndex === 1) {
+    return validateServiceStep(form, formMessage);
+  }
+
+  if (stepIndex === 2) {
+    return validateProjectStep(form, formMessage);
+  }
+
+  return validateContactStep(form, formMessage);
+}
+
+function validateLocationStep(form, formMessage) {
+  var address = form.elements.address;
+  var zipCode = form.elements.zipCode;
+  var city = form.elements.city;
+  var state = form.elements.state;
+  var hasError = false;
+
+  if (!getFieldValue(address) && !getFieldValue(zipCode)) {
+    markInvalid(address);
+    markInvalid(zipCode);
+    hasError = true;
+  }
+
+  if (getFieldValue(zipCode) && !isValidZipCode(getFieldValue(zipCode))) {
+    markInvalid(zipCode);
+    hasError = true;
+  }
+
+  if (!getFieldValue(city)) {
+    markInvalid(city);
+    hasError = true;
+  }
+
+  if (state) {
+    state.value = getFieldValue(state).toUpperCase();
+  }
+
+  if (!getFieldValue(state) || !/^[A-Z]{2}$/.test(getFieldValue(state))) {
+    markInvalid(state);
+    hasError = true;
+  }
+
+  if (hasError) {
+    setFormMessage(formMessage, "Enter an address or ZIP code, plus city and 2-letter state.", "error");
+  }
+
+  return !hasError;
+}
+
+function validateServiceStep(form, formMessage) {
+  var serviceType = form.elements.serviceType;
+  var serviceOptions = document.getElementById("serviceOptions");
+
+  if (!serviceType || !getFieldValue(serviceType)) {
+    markInvalid(serviceOptions);
+    setFormMessage(formMessage, "Choose a service category to continue.", "error");
+    return false;
+  }
+
+  return true;
+}
+
+function validateProjectStep(form, formMessage) {
+  var projectDescription = form.elements.projectDescription;
+  var urgencyGroup = form.querySelector('[data-choice-group="urgency"]');
+  var propertyGroup = form.querySelector('[data-choice-group="propertyType"]');
+  var hasError = false;
+
+  if (!getFieldValue(projectDescription) || getFieldValue(projectDescription).length < 3) {
+    markInvalid(projectDescription);
+    hasError = true;
+  }
+
+  if (!getCheckedValue(form, "urgency")) {
+    markInvalid(urgencyGroup);
+    hasError = true;
+  }
+
+  if (!getCheckedValue(form, "propertyType")) {
+    markInvalid(propertyGroup);
+    hasError = true;
+  }
+
+  if (hasError) {
+    setFormMessage(formMessage, "Add project details, urgency, and property type.", "error");
+  }
+
+  return !hasError;
+}
+
+function validateContactStep(form, formMessage) {
+  var firstName = form.elements.firstName;
+  var lastName = form.elements.lastName;
+  var phone = form.elements.phone;
+  var email = form.elements.email;
+  var contactGroup = form.querySelector('[data-choice-group="preferredContactMethod"]');
+  var hasError = false;
+
+  if (!getFieldValue(firstName)) {
+    markInvalid(firstName);
+    hasError = true;
+  }
+
+  if (!getFieldValue(lastName)) {
+    markInvalid(lastName);
+    hasError = true;
+  }
+
+  if (!getFieldValue(phone) || !/^[0-9+().\-\s]{7,30}$/.test(getFieldValue(phone))) {
+    markInvalid(phone);
+    hasError = true;
+  }
+
+  if (!getFieldValue(email) || !isValidEmail(getFieldValue(email))) {
+    markInvalid(email);
+    hasError = true;
+  }
+
+  if (!getCheckedValue(form, "preferredContactMethod")) {
+    markInvalid(contactGroup);
+    hasError = true;
+  }
+
+  if (hasError) {
+    setFormMessage(formMessage, "Enter your contact details and preferred contact method.", "error");
+  }
+
+  return !hasError;
+}
+
+function buildServiceRequestPayload(form) {
   return {
-    name: request.name,
-    email: request.email,
-    phone: request.phone || undefined,
-    service: request.service,
-    description: request.details,
-    city: request.city
+    serviceType: getFieldValue(form.elements.serviceType),
+    serviceSubtype: getOptionalValue(form.elements.serviceSubtype),
+    address: getOptionalValue(form.elements.address),
+    zipCode: getOptionalValue(form.elements.zipCode),
+    city: getFieldValue(form.elements.city),
+    state: getFieldValue(form.elements.state).toUpperCase(),
+    firstName: getFieldValue(form.elements.firstName),
+    lastName: getFieldValue(form.elements.lastName),
+    phone: getFieldValue(form.elements.phone),
+    email: getFieldValue(form.elements.email),
+    preferredContactMethod: getCheckedValue(form, "preferredContactMethod"),
+    projectDescription: getFieldValue(form.elements.projectDescription),
+    urgency: getCheckedValue(form, "urgency"),
+    propertyType: getCheckedValue(form, "propertyType")
   };
 }
 
-function toLocalRequestFromApiJob(job, fallback) {
-  var current = fallback && typeof fallback === "object" ? fallback : {};
-  var remoteJobId = job && job.id ? String(job.id) : getRemoteJobId(current);
-  var createdAt = toIsoDateOrFallback(job ? job.createdAt : null, current.dateISO);
+async function submitServiceRequestToApi(payload) {
+  if (!apiClient || typeof apiClient.createServiceRequest !== "function") {
+    throw new Error("Service request API is unavailable");
+  }
 
-  return {
-    id: remoteJobId || (current.id ? String(current.id) : nextRequestId()),
-    remoteJobId: remoteJobId || null,
-    name: job && job.customerName ? String(job.customerName) : current.name || "Unknown Customer",
-    email: job && job.customerEmail ? String(job.customerEmail) : current.email || "",
-    phone: job && job.customerPhone ? String(job.customerPhone) : current.phone || "",
-    service: normalizeService(job && job.serviceType ? String(job.serviceType) : current.service || "General Repairs"),
-    city: job && job.city && String(job.city).trim() ? String(job.city).trim() : current.city || "Unknown",
-    details: job && job.description ? String(job.description) : current.details || "",
-    dateISO: createdAt,
-    status: normalizeStatus(job && job.status ? String(job.status) : current.status || "new")
-  };
+  var response = await apiClient.createServiceRequest(payload);
+  if (!response || !response.serviceRequest) {
+    throw new Error("Service request API returned an invalid response");
+  }
+
+  return response;
 }
 
-function toIsoDateOrFallback(value, fallback) {
-  var parsedValue = Date.parse(value || "");
-  if (!Number.isNaN(parsedValue)) {
-    return new Date(parsedValue).toISOString();
+function getFieldValue(field) {
+  return field && typeof field.value === "string" ? field.value.trim() : "";
+}
+
+function getOptionalValue(field) {
+  var value = getFieldValue(field);
+  return value || undefined;
+}
+
+function getCheckedValue(form, name) {
+  var checked = form.querySelector('input[name="' + name + '"]:checked');
+  return checked ? checked.value : "";
+}
+
+function isValidZipCode(value) {
+  return /^[0-9]{5}(-[0-9]{4})?$/.test(value);
+}
+
+function clearStepValidation(form) {
+  Array.prototype.slice.call(form.querySelectorAll(".field-invalid")).forEach(function (item) {
+    clearInvalid(item);
+  });
+}
+
+function focusFirstInvalid(form) {
+  var firstInvalid = form.querySelector(".field-invalid");
+  var focusTarget = firstInvalid;
+
+  if (!firstInvalid) {
+    return;
   }
 
-  var parsedFallback = Date.parse(fallback || "");
-  if (!Number.isNaN(parsedFallback)) {
-    return new Date(parsedFallback).toISOString();
+  if (firstInvalid.classList.contains("service-option-grid")) {
+    focusTarget = firstInvalid.querySelector(".service-option");
+  } else if (firstInvalid.classList.contains("choice-group")) {
+    focusTarget = firstInvalid.querySelector("input");
   }
 
-  return new Date().toISOString();
+  if (focusTarget && typeof focusTarget.focus === "function") {
+    focusTarget.focus();
+  }
+}
+
+function resetServiceOptions(serviceOptions, serviceInput) {
+  if (serviceInput) {
+    serviceInput.value = "";
+  }
+
+  serviceOptions.forEach(function (button) {
+    button.classList.remove("selected");
+    button.setAttribute("aria-pressed", "false");
+  });
 }
 
 function initDashboardApp() {
@@ -398,10 +559,12 @@ function initDashboardApp() {
   }
 
   var state = {
-    requests: ensureRequestStore(),
-    map: null,
-    markerLayer: null,
-    authUser: getCurrentAuthUser()
+    assignedJobs: [],
+    availableJobs: [],
+    notifications: [],
+    authUser: getCurrentAuthUser(),
+    profile: null,
+    loadError: ""
   };
 
   var elements = {
@@ -410,34 +573,29 @@ function initDashboardApp() {
     overlay: document.getElementById("dashboardOverlay"),
     sidebarToggle: document.getElementById("sidebarToggle"),
     sidebarLinks: Array.prototype.slice.call(document.querySelectorAll(".sidebar-link")),
-    metricNew: document.getElementById("metricNewRequests"),
+    metricAvailable: document.getElementById("metricAvailableJobs"),
+    metricActive: document.getElementById("metricActiveJobs"),
     metricScheduled: document.getElementById("metricScheduledJobs"),
     metricCompleted: document.getElementById("metricCompletedJobs"),
-    metricRevenue: document.getElementById("metricWeeklyRevenue"),
-    sidebarNew: document.getElementById("sidebarNewCount"),
+    sidebarAvailable: document.getElementById("sidebarAvailableCount"),
     sidebarScheduled: document.getElementById("sidebarScheduledCount"),
-    sidebarCompleted: document.getElementById("sidebarCompletedCount"),
+    sidebarUnread: document.getElementById("sidebarUnreadCount"),
+    sidebarServiceArea: document.getElementById("sidebarServiceArea"),
     alertBadge: document.getElementById("topbarAlertBadge"),
-    alertCount: document.getElementById("topbarNewAlertCount"),
+    alertCount: document.getElementById("topbarAvailableCount"),
     tableBody: document.getElementById("requestsTableBody"),
     availableJobsList: document.getElementById("availableJobsList"),
+    availableJobsCount: document.getElementById("availableJobsCount"),
     pipelineLists: Array.prototype.slice.call(document.querySelectorAll(".pipeline-list")),
     notificationsList: document.getElementById("notificationsList"),
-    mapContainer: document.getElementById("jobMap"),
-    mapFallback: document.getElementById("mapFallback"),
+    notificationsCount: document.getElementById("notificationsCount"),
     profileName: document.getElementById("profileName"),
     profileRating: document.getElementById("profileRating"),
     profileCompleted: document.getElementById("profileCompleted"),
     profileActive: document.getElementById("profileActive"),
     profileArea: document.getElementById("profileArea"),
-    earningsToday: document.getElementById("earningsToday"),
-    earningsWeek: document.getElementById("earningsWeek"),
-    earningsMonth: document.getElementById("earningsMonth"),
-    earningsPending: document.getElementById("earningsPending"),
-    barToday: document.getElementById("barToday"),
-    barWeek: document.getElementById("barWeek"),
-    barMonth: document.getElementById("barMonth"),
-    barPending: document.getElementById("barPending"),
+    profileServices: document.getElementById("profileServices"),
+    profileStatusBadge: document.getElementById("profileStatusBadge"),
     detailsModal: document.getElementById("detailsModal"),
     detailsClose: document.getElementById("detailsClose"),
     topbarUser: document.getElementById("topbarUser"),
@@ -445,105 +603,52 @@ function initDashboardApp() {
   };
 
   bindDashboardEvents(state, elements);
-  renderDashboard(state, elements);
-  hydrateDashboardSession(state, elements).finally(function () {
+  loadDashboardData(state, elements).finally(function () {
     if (!state.redirecting) {
       revealDashboard(elements);
     }
   });
-  syncDashboardRequests(state, elements);
 }
 
-async function syncDashboardRequests(state, elements) {
-  if (!apiClient || typeof apiClient.getJob !== "function") {
-    return;
-  }
-
+async function loadDashboardData(state, elements) {
   try {
-    var syncResult = await syncRequestsFromApi(state.requests);
-    if (!syncResult.changed) {
+    state.loadError = "";
+
+    var session = await apiClient.getCurrentUser();
+    state.authUser = session && session.user ? session.user : getCurrentAuthUser();
+    state.profile = session && session.profile ? session.profile : null;
+
+    if (!state.authUser || state.authUser.role !== "contractor") {
+      state.loadError = "This dashboard is available to contractor accounts only.";
+      renderDashboard(state, elements);
       return;
     }
 
-    state.requests = syncResult.requests;
-    writeRequests(state.requests);
+    var results = await Promise.all([
+      apiClient.getContractorJobs(),
+      apiClient.getAvailableContractorJobs(),
+      apiClient.getContractorNotifications()
+    ]);
+
+    state.assignedJobs = normalizeJobList(results[0] && results[0].data, "assigned");
+    state.availableJobs = normalizeJobList(results[1] && results[1].data, "available");
+    state.notifications = normalizeNotifications(results[2] && results[2].data);
     renderDashboard(state, elements);
   } catch (error) {
-    console.error("Failed to sync dashboard data from API:", error);
-  }
-}
+    console.error("Failed to load dashboard data from API:", error);
 
-async function syncRequestsFromApi(requests) {
-  if (!Array.isArray(requests) || requests.length === 0) {
-    return {
-      changed: false,
-      requests: requests
-    };
-  }
-
-  var candidates = requests
-    .map(function (request, index) {
-      var remoteJobId = getRemoteJobId(request);
-      if (!remoteJobId || !request.email) {
-        return null;
+    if (error && (error.status === 401 || error.status === 403)) {
+      state.redirecting = true;
+      if (apiClient && typeof apiClient.clearSession === "function") {
+        apiClient.clearSession();
       }
-      return {
-        index: index,
-        remoteJobId: remoteJobId,
-        email: request.email
-      };
-    })
-    .filter(Boolean);
+      redirectToLogin();
+      return;
+    }
 
-  if (candidates.length === 0) {
-    return {
-      changed: false,
-      requests: requests
-    };
+    state.loadError = getRequestErrorMessage(error, "Unable to load dashboard data.");
+    renderDashboard(state, elements);
   }
-
-  var results = await Promise.all(
-    candidates.map(function (candidate) {
-      return apiClient
-        .getJob(candidate.remoteJobId, candidate.email)
-        .then(function (payload) {
-          return {
-            candidate: candidate,
-            payload: payload
-          };
-        })
-        .catch(function () {
-          return null;
-        });
-    })
-  );
-
-  var next = requests.slice();
-  var changed = false;
-
-  results.forEach(function (result) {
-    if (!result || !result.payload || !result.payload.job) {
-      return;
-    }
-
-    var current = next[result.candidate.index];
-    if (!current) {
-      return;
-    }
-
-    var updated = toLocalRequestFromApiJob(result.payload.job, current);
-    if (JSON.stringify(updated) === JSON.stringify(current)) {
-      return;
-    }
-
-    next[result.candidate.index] = updated;
-    changed = true;
-  });
-
-  return {
-    changed: changed,
-    requests: next
-  };
 }
 
 function bindDashboardEvents(state, elements) {
@@ -600,7 +705,7 @@ function bindDashboardEvents(state, elements) {
       if (!button || button.disabled) {
         return;
       }
-      handleRequestAction(state, elements, button.getAttribute("data-id"), button.getAttribute("data-action"));
+      handleAssignedJobAction(state, elements, button);
     });
   }
 
@@ -609,74 +714,24 @@ function bindDashboardEvents(state, elements) {
       if (!(event.target instanceof HTMLElement)) {
         return;
       }
-      var button = event.target.closest("button[data-action='accept']");
+      var button = event.target.closest("button[data-action]");
       if (!button || button.disabled) {
         return;
       }
-      handleRequestAction(state, elements, button.getAttribute("data-id"), "accept");
+      handleAvailableJobAction(state, elements, button);
     });
   }
 
-  elements.pipelineLists.forEach(function (list) {
-    list.addEventListener("dragover", function (event) {
-      event.preventDefault();
-      list.classList.add("drop-target");
-    });
-
-    list.addEventListener("dragleave", function () {
-      list.classList.remove("drop-target");
-    });
-
-    list.addEventListener("drop", function (event) {
-      event.preventDefault();
-      list.classList.remove("drop-target");
-      var requestId = event.dataTransfer ? event.dataTransfer.getData("text/plain") : "";
-      var stage = list.getAttribute("data-stage");
-      if (!requestId || !stage) {
-        return;
-      }
-
-      var request = state.requests.find(function (item) {
-        return item.id === requestId;
-      });
-
-      if (!request || STAGE_ORDER.indexOf(stage) === -1 || request.status === stage) {
-        return;
-      }
-
-      request.status = stage;
-      writeRequests(state.requests);
-      renderDashboard(state, elements);
-    });
-  });
-
-  var pipelineBoard = document.getElementById("pipelineBoard");
-  if (pipelineBoard) {
-    pipelineBoard.addEventListener("dragstart", function (event) {
+  if (elements.notificationsList) {
+    elements.notificationsList.addEventListener("click", function (event) {
       if (!(event.target instanceof HTMLElement)) {
         return;
       }
-      var card = event.target.closest(".pipeline-card");
-      if (!card || !card.getAttribute("data-id") || !event.dataTransfer) {
+      var button = event.target.closest("button[data-action='mark-notification-read']");
+      if (!button || button.disabled) {
         return;
       }
-
-      event.dataTransfer.setData("text/plain", card.getAttribute("data-id"));
-      event.dataTransfer.effectAllowed = "move";
-      card.classList.add("is-dragging");
-    });
-
-    pipelineBoard.addEventListener("dragend", function (event) {
-      if (!(event.target instanceof HTMLElement)) {
-        return;
-      }
-      var card = event.target.closest(".pipeline-card");
-      if (card) {
-        card.classList.remove("is-dragging");
-      }
-      elements.pipelineLists.forEach(function (list) {
-        list.classList.remove("drop-target");
-      });
+      handleNotificationAction(state, elements, button);
     });
   }
 
@@ -702,40 +757,98 @@ function bindDashboardEvents(state, elements) {
     if (window.innerWidth > 980) {
       setSidebarOpen(elements, false);
     }
-    if (state.map) {
-      state.map.invalidateSize();
-    }
   });
 }
 
-function handleRequestAction(state, elements, id, action) {
-  var request = state.requests.find(function (item) {
+async function handleAssignedJobAction(state, elements, button) {
+  var id = button.getAttribute("data-id");
+  var action = button.getAttribute("data-action");
+  var job = state.assignedJobs.find(function (item) {
     return item.id === id;
   });
 
-  if (!request) {
+  if (!job) {
     return;
   }
 
   if (action === "view") {
-    openDetailsModal(elements, request);
+    openDetailsModal(elements, job);
     return;
   }
 
-  if (action === "accept" && request.status === "new") {
-    request.status = "accepted";
+  var nextStatus = {
+    schedule: "scheduled",
+    start: "in_progress",
+    complete: "completed"
+  }[action];
+
+  if (!nextStatus) {
+    return;
   }
 
-  if (action === "schedule" && (request.status === "new" || request.status === "accepted")) {
-    request.status = "scheduled";
+  await runDashboardAction(button, async function () {
+    await apiClient.updateJobStatus(job.id, nextStatus);
+    await loadDashboardData(state, elements);
+  });
+}
+
+async function handleAvailableJobAction(state, elements, button) {
+  var id = button.getAttribute("data-id");
+  var action = button.getAttribute("data-action");
+  var job = state.availableJobs.find(function (item) {
+    return item.id === id;
+  });
+
+  if (!job) {
+    return;
   }
 
-  if (action === "complete" && request.status !== "completed" && request.status !== "new") {
-    request.status = "completed";
+  if (action === "view") {
+    openDetailsModal(elements, job);
+    return;
   }
 
-  writeRequests(state.requests);
-  renderDashboard(state, elements);
+  if (action !== "accept") {
+    return;
+  }
+
+  await runDashboardAction(button, async function () {
+    await apiClient.acceptJob(job.id);
+    await loadDashboardData(state, elements);
+  });
+}
+
+async function handleNotificationAction(state, elements, button) {
+  var id = button.getAttribute("data-id");
+  if (!id) {
+    return;
+  }
+
+  await runDashboardAction(button, async function () {
+    await apiClient.markContractorNotificationRead(id);
+    await loadDashboardData(state, elements);
+  });
+}
+
+async function runDashboardAction(button, action) {
+  var previousText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Working...";
+
+  try {
+    await action();
+  } catch (error) {
+    console.error("Dashboard action failed:", error);
+    button.textContent = getRequestErrorMessage(error, "Action failed");
+    window.setTimeout(function () {
+      button.disabled = false;
+      button.textContent = previousText;
+    }, 1800);
+    return;
+  }
+
+  button.disabled = false;
+  button.textContent = previousText;
 }
 
 function setSidebarOpen(elements, isOpen) {
@@ -751,14 +864,14 @@ function openDetailsModal(elements, request) {
   }
 
   var values = {
-    name: request.name,
-    service: request.service,
-    city: request.city,
-    date: formatDate(request.dateISO),
+    name: request.customerName || "Customer details available after acceptance",
+    service: request.serviceType,
+    city: formatLocation(request),
+    date: formatDate(request.createdAt),
     status: formatStatus(request.status),
-    email: request.email,
-    phone: request.phone || "Not provided",
-    details: request.details || "No project details provided."
+    email: request.customerEmail || "Available after acceptance",
+    phone: request.customerPhone || "Available after acceptance",
+    details: request.description || "No project details provided."
   };
 
   Object.keys(values).forEach(function (key) {
@@ -779,42 +892,14 @@ function closeDetailsModal(elements) {
 
 function renderDashboard(state, elements) {
   renderAuthenticatedUser(state, elements);
-  renderMetrics(state.requests, elements);
-  renderSidebarIndicators(state.requests, elements);
-  renderAlertBadge(state.requests, elements);
-  renderContractorProfile(state.requests, elements);
-  renderEarnings(state.requests, elements);
-  renderTable(state.requests, elements);
-  renderAvailableJobs(state.requests, elements);
-  renderPipeline(state.requests, elements);
-  renderNotifications(state.requests, elements);
-  renderMap(state, elements);
-}
-
-async function hydrateDashboardSession(state, elements) {
-  if (!apiClient || typeof apiClient.getCurrentUser !== "function") {
-    return;
-  }
-
-  try {
-    var response = await apiClient.getCurrentUser();
-    if (!response || !response.user) {
-      return;
-    }
-
-    state.authUser = response.user;
-    renderDashboard(state, elements);
-  } catch (error) {
-    console.error("Failed to load the current user session:", error);
-
-    if (error && (error.status === 401 || error.status === 403)) {
-      state.redirecting = true;
-      if (apiClient && typeof apiClient.clearSession === "function") {
-        apiClient.clearSession();
-      }
-      redirectToLogin();
-    }
-  }
+  renderMetrics(state, elements);
+  renderSidebarIndicators(state, elements);
+  renderAlertBadge(state, elements);
+  renderContractorProfile(state, elements);
+  renderAvailableJobs(state, elements);
+  renderTable(state, elements);
+  renderPipeline(state, elements);
+  renderNotifications(state, elements);
 }
 
 function renderAuthenticatedUser(state, elements) {
@@ -832,133 +917,112 @@ function renderAuthenticatedUser(state, elements) {
   elements.topbarUser.textContent = label;
 }
 
-function renderMetrics(requests, elements) {
-  var counts = getStatusCounts(requests);
-  var revenue = getWeeklyRevenue(requests);
+function renderMetrics(state, elements) {
+  var counts = getDashboardCounts(state);
 
-  if (elements.metricNew) {
-    elements.metricNew.textContent = String(counts.newCount);
+  if (elements.metricAvailable) {
+    elements.metricAvailable.textContent = String(counts.available);
+  }
+  if (elements.metricActive) {
+    elements.metricActive.textContent = String(counts.active);
   }
   if (elements.metricScheduled) {
-    elements.metricScheduled.textContent = String(counts.scheduledCount);
+    elements.metricScheduled.textContent = String(counts.scheduled);
   }
   if (elements.metricCompleted) {
-    elements.metricCompleted.textContent = String(counts.completedCount);
-  }
-  if (elements.metricRevenue) {
-    elements.metricRevenue.textContent = formatCurrency(revenue);
+    elements.metricCompleted.textContent = String(counts.completed);
   }
 }
 
-function renderSidebarIndicators(requests, elements) {
-  var counts = getStatusCounts(requests);
+function renderSidebarIndicators(state, elements) {
+  var counts = getDashboardCounts(state);
 
-  if (elements.sidebarNew) {
-    elements.sidebarNew.textContent = String(counts.newCount);
+  if (elements.sidebarAvailable) {
+    elements.sidebarAvailable.textContent = String(counts.available);
   }
   if (elements.sidebarScheduled) {
-    elements.sidebarScheduled.textContent = String(counts.scheduledCount);
+    elements.sidebarScheduled.textContent = String(counts.scheduled);
   }
-  if (elements.sidebarCompleted) {
-    elements.sidebarCompleted.textContent = String(counts.completedCount);
+  if (elements.sidebarUnread) {
+    elements.sidebarUnread.textContent = String(counts.unread);
+  }
+  if (elements.sidebarServiceArea) {
+    elements.sidebarServiceArea.textContent = formatServiceArea(state.profile);
   }
 }
 
-function renderAlertBadge(requests, elements) {
+function renderAlertBadge(state, elements) {
   if (!elements.alertBadge || !elements.alertCount) {
     return;
   }
 
-  var counts = getStatusCounts(requests);
-  elements.alertCount.textContent = String(counts.newCount);
-  elements.alertBadge.classList.toggle("is-empty", counts.newCount === 0);
+  var counts = getDashboardCounts(state);
+  elements.alertCount.textContent = String(counts.available);
+  elements.alertBadge.classList.toggle("is-empty", counts.available === 0);
 }
 
-function renderContractorProfile(requests, elements) {
-  var completed = requests.filter(function (request) {
-    return request.status === "completed";
-  }).length;
-
-  var active = requests.filter(function (request) {
-    return request.status === "accepted" || request.status === "scheduled" || request.status === "in_progress";
-  }).length;
+function renderContractorProfile(state, elements) {
+  var profile = state.profile || {};
+  var counts = getDashboardCounts(state);
+  var services = Array.isArray(profile.services_offered) ? profile.services_offered : [];
 
   if (elements.profileName) {
-    elements.profileName.textContent = CONTRACTOR_PROFILE.name;
+    elements.profileName.textContent = profile.display_name || "Contractor";
   }
   if (elements.profileRating) {
-    elements.profileRating.textContent = CONTRACTOR_PROFILE.rating.toFixed(1) + " / 5.0";
+    var rating = Number(profile.rating);
+    elements.profileRating.textContent = Number.isFinite(rating) ? rating.toFixed(1) + " / 5.0" : "Not rated yet";
   }
   if (elements.profileCompleted) {
-    elements.profileCompleted.textContent = String(CONTRACTOR_PROFILE.baseCompletedJobs + completed);
+    elements.profileCompleted.textContent = String(profile.jobs_completed_base || 0);
   }
   if (elements.profileActive) {
-    elements.profileActive.textContent = String(active);
+    elements.profileActive.textContent = String(counts.active);
   }
   if (elements.profileArea) {
-    elements.profileArea.textContent = CONTRACTOR_PROFILE.serviceArea;
+    elements.profileArea.textContent = formatServiceArea(profile);
+  }
+  if (elements.profileServices) {
+    elements.profileServices.textContent = services.length ? services.join(", ") : "No services listed";
+  }
+  if (elements.profileStatusBadge) {
+    elements.profileStatusBadge.textContent = formatStatus(profile.status || "active");
   }
 }
 
-function renderEarnings(requests, elements) {
-  var today = getTodayRevenue(requests);
-  var week = getWeeklyRevenue(requests);
-  var month = getMonthlyRevenue(requests);
-  var pending = getPendingPayouts(requests);
-
-  if (elements.earningsToday) {
-    elements.earningsToday.textContent = formatCurrency(today);
-  }
-  if (elements.earningsWeek) {
-    elements.earningsWeek.textContent = formatCurrency(week);
-  }
-  if (elements.earningsMonth) {
-    elements.earningsMonth.textContent = formatCurrency(month);
-  }
-  if (elements.earningsPending) {
-    elements.earningsPending.textContent = formatCurrency(pending);
-  }
-
-  var max = Math.max(today, week, month, pending, 1);
-  setBarWidth(elements.barToday, today, max);
-  setBarWidth(elements.barWeek, week, max);
-  setBarWidth(elements.barMonth, month, max);
-  setBarWidth(elements.barPending, pending, max);
-}
-
-function setBarWidth(bar, value, max) {
-  if (!bar) {
-    return;
-  }
-
-  var ratio = Math.max(0, Math.min(1, value / max));
-  var width = value > 0 ? Math.max(8, Math.round(ratio * 100)) : 0;
-  bar.style.width = width + "%";
-}
-
-function renderTable(requests, elements) {
+function renderTable(state, elements) {
   if (!elements.tableBody) {
     return;
   }
 
   elements.tableBody.innerHTML = "";
 
-  var sorted = requests.slice().sort(function (a, b) {
-    return Date.parse(b.dateISO) - Date.parse(a.dateISO);
+  if (state.loadError) {
+    appendEmptyTableRow(elements.tableBody, state.loadError);
+    return;
+  }
+
+  var sorted = state.assignedJobs.slice().sort(function (a, b) {
+    return Date.parse(b.createdAt) - Date.parse(a.createdAt);
   });
 
-  sorted.forEach(function (request) {
+  if (sorted.length === 0) {
+    appendEmptyTableRow(elements.tableBody, "No assigned jobs for this account yet.");
+    return;
+  }
+
+  sorted.forEach(function (job) {
     var row = document.createElement("tr");
 
-    row.appendChild(createTextCell(request.name));
-    row.appendChild(createTextCell(request.service));
-    row.appendChild(createTextCell(request.city));
-    row.appendChild(createTextCell(formatDate(request.dateISO)));
+    row.appendChild(createTextCell(job.customerName || "Customer"));
+    row.appendChild(createTextCell(job.serviceType));
+    row.appendChild(createTextCell(formatLocation(job)));
+    row.appendChild(createTextCell(formatDate(job.createdAt)));
 
     var statusCell = document.createElement("td");
     var statusBadge = document.createElement("span");
-    statusBadge.className = "status-badge status-" + request.status;
-    statusBadge.textContent = formatStatus(request.status);
+    statusBadge.className = "status-badge status-" + job.status;
+    statusBadge.textContent = formatStatus(job.status);
     statusCell.appendChild(statusBadge);
     row.appendChild(statusCell);
 
@@ -966,20 +1030,17 @@ function renderTable(requests, elements) {
     var actionGroup = document.createElement("div");
     actionGroup.className = "action-group";
 
-    actionGroup.appendChild(createActionButton("View Details", "action-view", "view", request.id, false));
-    actionGroup.appendChild(
-      createActionButton("Accept", "action-accept", "accept", request.id, request.status !== "new")
-    );
+    actionGroup.appendChild(createActionButton("View", "action-view", "view", job.id, false));
 
-    var scheduleDisabled = !(request.status === "new" || request.status === "accepted");
-    actionGroup.appendChild(
-      createActionButton("Schedule", "action-schedule", "schedule", request.id, scheduleDisabled)
-    );
-
-    var completeDisabled = request.status === "completed" || request.status === "new";
-    actionGroup.appendChild(
-      createActionButton("Mark Complete", "action-complete", "complete", request.id, completeDisabled)
-    );
+    if (job.status === "accepted") {
+      actionGroup.appendChild(createActionButton("Schedule", "action-schedule", "schedule", job.id, false));
+    }
+    if (job.status === "scheduled") {
+      actionGroup.appendChild(createActionButton("Start", "action-schedule", "start", job.id, false));
+    }
+    if (job.status === "in_progress") {
+      actionGroup.appendChild(createActionButton("Complete", "action-complete", "complete", job.id, false));
+    }
 
     actionsCell.appendChild(actionGroup);
     row.appendChild(actionsCell);
@@ -988,52 +1049,51 @@ function renderTable(requests, elements) {
   });
 }
 
-function renderAvailableJobs(requests, elements) {
+function renderAvailableJobs(state, elements) {
   if (!elements.availableJobsList) {
     return;
   }
 
   elements.availableJobsList.innerHTML = "";
 
-  var available = requests
-    .filter(function (request) {
-      return request.status === "new";
-    })
-    .sort(function (a, b) {
-      return Date.parse(b.dateISO) - Date.parse(a.dateISO);
-    });
+  var available = state.availableJobs.slice().sort(function (a, b) {
+    return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+  });
+
+  if (elements.availableJobsCount) {
+    elements.availableJobsCount.textContent = available.length + " open";
+  }
 
   if (available.length === 0) {
     var empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "No open jobs right now. Check back soon.";
+    empty.textContent = state.loadError || "No available jobs assigned to this account right now.";
     elements.availableJobsList.appendChild(empty);
     return;
   }
 
-  available.forEach(function (request) {
+  available.forEach(function (job) {
     var card = document.createElement("article");
     card.className = "available-job-card";
 
-    var distance = getDistanceMiles(CONTRACTOR_PROFILE.homeCity, request.city);
-    var budget = getBudgetRange(request.service);
-
     card.innerHTML =
-      "<div><span class='job-label'>Customer</span><strong>" + escapeHtml(request.name) + "</strong></div>" +
-      "<div><span class='job-label'>Service</span><strong>" + escapeHtml(request.service) + "</strong></div>" +
-      "<div><span class='job-label'>Location</span><strong>" + escapeHtml(request.city) + "</strong></div>" +
-      "<div><span class='job-label'>Distance</span><strong>" + distance + "</strong></div>" +
-      "<div><span class='job-label'>Budget</span><strong>" + budget + "</strong></div>";
+      "<div><span class='job-label'>Service</span><strong>" + escapeHtml(job.serviceType) + "</strong></div>" +
+      "<div><span class='job-label'>Location</span><strong>" + escapeHtml(formatLocation(job)) + "</strong></div>" +
+      "<div><span class='job-label'>Assigned</span><strong>" + escapeHtml(formatDate(job.assignment && job.assignment.assignedAt ? job.assignment.assignedAt : job.createdAt)) + "</strong></div>" +
+      "<div><span class='job-label'>Estimated Value</span><strong>" + escapeHtml(formatEstimatedValue(job)) + "</strong></div>" +
+      "<div><span class='job-label'>Distance</span><strong>" + escapeHtml(formatDistance(job.distanceMiles)) + "</strong></div>";
 
     var actionWrap = document.createElement("div");
     actionWrap.className = "available-action";
+
+    actionWrap.appendChild(createActionButton("View", "action-view", "view", job.id, false));
 
     var button = document.createElement("button");
     button.type = "button";
     button.className = "available-accept-btn";
     button.textContent = "Accept Job";
     button.setAttribute("data-action", "accept");
-    button.setAttribute("data-id", request.id);
+    button.setAttribute("data-id", job.id);
 
     actionWrap.appendChild(button);
     card.appendChild(actionWrap);
@@ -1041,7 +1101,7 @@ function renderAvailableJobs(requests, elements) {
   });
 }
 
-function renderPipeline(requests, elements) {
+function renderPipeline(state, elements) {
   var stageMap = {};
   elements.pipelineLists.forEach(function (list) {
     list.innerHTML = "";
@@ -1051,21 +1111,19 @@ function renderPipeline(requests, elements) {
     }
   });
 
-  requests.forEach(function (request) {
-    var list = stageMap[request.status];
+  state.assignedJobs.forEach(function (job) {
+    var list = stageMap[job.status];
     if (!list) {
       return;
     }
 
     var card = document.createElement("article");
-    card.className = "pipeline-card status-" + request.status;
-    card.setAttribute("draggable", "true");
-    card.setAttribute("data-id", request.id);
+    card.className = "pipeline-card status-" + job.status;
 
     card.innerHTML =
-      "<strong>" + escapeHtml(request.name) + "</strong>" +
-      "<p>" + escapeHtml(request.service) + " - " + escapeHtml(request.city) + "</p>" +
-      "<span class='pipeline-date'>" + formatDate(request.dateISO) + "</span>";
+      "<strong>" + escapeHtml(job.customerName || "Customer") + "</strong>" +
+      "<p>" + escapeHtml(job.serviceType) + " - " + escapeHtml(formatLocation(job)) + "</p>" +
+      "<span class='pipeline-date'>" + formatDate(job.createdAt) + "</span>";
 
     list.appendChild(card);
   });
@@ -1074,124 +1132,79 @@ function renderPipeline(requests, elements) {
     if (list.children.length === 0) {
       var empty = document.createElement("p");
       empty.className = "pipeline-empty";
-      empty.textContent = "No jobs";
+      empty.textContent = "No jobs in this status";
       list.appendChild(empty);
     }
   });
 }
 
-function renderNotifications(requests, elements) {
+function renderNotifications(state, elements) {
   if (!elements.notificationsList) {
     return;
   }
 
   elements.notificationsList.innerHTML = "";
 
-  var newestNew = requests
-    .filter(function (request) {
-      return request.status === "new";
-    })
-    .sort(function (a, b) {
-      return Date.parse(b.dateISO) - Date.parse(a.dateISO);
-    })[0];
+  var unreadCount = state.notifications.filter(function (notification) {
+    return !notification.read;
+  }).length;
 
-  var newestScheduled = requests
-    .filter(function (request) {
-      return request.status === "scheduled";
-    })
-    .sort(function (a, b) {
-      return Date.parse(b.dateISO) - Date.parse(a.dateISO);
-    })[0];
-
-  var notifications = [];
-
-  if (newestNew) {
-    notifications.push("New " + newestNew.service.toLowerCase() + " request in " + newestNew.city + ".");
+  if (elements.notificationsCount) {
+    elements.notificationsCount.textContent = unreadCount + " unread";
   }
 
-  notifications.push("Customer message received.");
-
-  if (newestScheduled) {
-    notifications.push("Job scheduled for " + formatDate(newestScheduled.dateISO) + ".");
-  } else {
-    notifications.push("Job scheduled for tomorrow.");
+  if (state.notifications.length === 0) {
+    var empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = state.loadError || "No backend notifications for this account.";
+    elements.notificationsList.appendChild(empty);
+    return;
   }
 
-  notifications.slice(0, 4).forEach(function (message) {
+  state.notifications.forEach(function (notification) {
     var card = document.createElement("article");
     card.className = "notification-card";
-    card.textContent = message;
+    if (!notification.read) {
+      card.classList.add("is-unread");
+    }
+
+    var message = document.createElement("p");
+    message.textContent = notification.message;
+    card.appendChild(message);
+
+    var meta = document.createElement("div");
+    meta.className = "notification-meta";
+    meta.appendChild(document.createTextNode(formatDate(notification.createdAt)));
+
+    if (!notification.read) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "dashboard-button notification-read-btn";
+      button.textContent = "Mark read";
+      button.setAttribute("data-action", "mark-notification-read");
+      button.setAttribute("data-id", notification.id);
+      meta.appendChild(button);
+    }
+
+    card.appendChild(meta);
     elements.notificationsList.appendChild(card);
   });
 }
 
-function renderMap(state, elements) {
-  if (!elements.mapContainer) {
-    return;
-  }
-
-  if (!window.L) {
-    if (elements.mapFallback) {
-      elements.mapFallback.hidden = false;
-      elements.mapFallback.textContent = "Map is temporarily unavailable. Job data is still visible in the table.";
-    }
-    return;
-  }
-
-  if (elements.mapFallback) {
-    elements.mapFallback.hidden = true;
-  }
-
-  if (!state.map) {
-    state.map = window.L.map(elements.mapContainer).setView(FALLBACK_COORDS, 7);
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(state.map);
-    state.markerLayer = window.L.layerGroup().addTo(state.map);
-  }
-
-  state.markerLayer.clearLayers();
-
-  var bounds = [];
-  state.requests.forEach(function (request) {
-    var coords = getCityCoords(request.city);
-    bounds.push(coords);
-
-    window.L.circleMarker(coords, {
-      radius: 8,
-      fillColor: getStatusColor(request.status),
-      color: "#ffffff",
-      weight: 2,
-      fillOpacity: 0.95
-    })
-      .bindPopup(
-        "<strong>" + escapeHtml(request.name) + "</strong><br>" +
-          escapeHtml(request.service) + "<br>" +
-          escapeHtml(request.city) + "<br>" +
-          formatStatus(request.status) + "<br>" +
-          formatDate(request.dateISO)
-      )
-      .addTo(state.markerLayer);
-  });
-
-  if (bounds.length > 0) {
-    state.map.fitBounds(bounds, {
-      padding: [30, 30],
-      maxZoom: 9
-    });
-  } else {
-    state.map.setView(FALLBACK_COORDS, 7);
-  }
-
-  setTimeout(function () {
-    state.map.invalidateSize();
-  }, 0);
-}
-
 function createTextCell(value) {
   var cell = document.createElement("td");
-  cell.textContent = value;
+  cell.textContent = value || "--";
   return cell;
+}
+
+function appendEmptyTableRow(tableBody, message) {
+  var row = document.createElement("tr");
+  var cell = document.createElement("td");
+  cell.colSpan = 6;
+  cell.className = "empty-state";
+  cell.textContent = message;
+  row.appendChild(cell);
+  tableBody.appendChild(row);
 }
 
 function createActionButton(text, className, action, id, disabled) {
@@ -1241,11 +1254,21 @@ function redirectToLogin() {
 }
 
 function markInvalid(field) {
+  if (!field) {
+    return;
+  }
+
   field.classList.add("field-invalid");
+  field.setAttribute("aria-invalid", "true");
 }
 
 function clearInvalid(field) {
+  if (!field) {
+    return;
+  }
+
   field.classList.remove("field-invalid");
+  field.removeAttribute("aria-invalid");
 }
 
 function setFormMessage(element, message, type) {
@@ -1309,388 +1332,126 @@ function formatCurrency(amount) {
   });
 }
 
-function getStatusCounts(requests) {
-  return requests.reduce(
-    function (acc, request) {
-      if (request.status === "new") {
-        acc.newCount += 1;
-      }
-      if (request.status === "scheduled") {
-        acc.scheduledCount += 1;
-      }
-      if (request.status === "completed") {
-        acc.completedCount += 1;
-      }
-      return acc;
-    },
-    {
-      newCount: 0,
-      scheduledCount: 0,
-      completedCount: 0
-    }
-  );
-}
+function getDashboardCounts(state) {
+  var active = state.assignedJobs.filter(function (job) {
+    return job.status === "accepted" || job.status === "scheduled" || job.status === "in_progress";
+  }).length;
 
-function getTodayRevenue(requests) {
-  var now = new Date();
+  var scheduled = state.assignedJobs.filter(function (job) {
+    return job.status === "scheduled";
+  }).length;
 
-  return requests.reduce(function (sum, request) {
-    if (request.status !== "completed") {
-      return sum;
-    }
+  var completed = state.assignedJobs.filter(function (job) {
+    return job.status === "completed";
+  }).length;
 
-    var date = new Date(request.dateISO);
-    if (
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate()
-    ) {
-      return sum + (SERVICE_VALUES[request.service] || 0);
-    }
-
-    return sum;
-  }, 0);
-}
-
-function getWeeklyRevenue(requests) {
-  var now = Date.now();
-  var oneWeekMs = 7 * 24 * 60 * 60 * 1000;
-
-  return requests.reduce(function (sum, request) {
-    if (request.status !== "completed") {
-      return sum;
-    }
-
-    var requestTime = Date.parse(request.dateISO);
-    if (Number.isNaN(requestTime) || requestTime > now || now - requestTime > oneWeekMs) {
-      return sum;
-    }
-
-    return sum + (SERVICE_VALUES[request.service] || 0);
-  }, 0);
-}
-
-function getMonthlyRevenue(requests) {
-  var now = Date.now();
-  var monthMs = 30 * 24 * 60 * 60 * 1000;
-
-  return requests.reduce(function (sum, request) {
-    if (request.status !== "completed") {
-      return sum;
-    }
-
-    var requestTime = Date.parse(request.dateISO);
-    if (Number.isNaN(requestTime) || requestTime > now || now - requestTime > monthMs) {
-      return sum;
-    }
-
-    return sum + (SERVICE_VALUES[request.service] || 0);
-  }, 0);
-}
-
-function getPendingPayouts(requests) {
-  return requests.reduce(function (sum, request) {
-    if (request.status === "accepted" || request.status === "scheduled" || request.status === "in_progress") {
-      return sum + Math.round((SERVICE_VALUES[request.service] || 0) * 0.65);
-    }
-    return sum;
-  }, 0);
-}
-
-function normalizeService(service) {
-  var allowed = ["Plumbing", "Electrical", "Carpentry", "General Repairs"];
-  if (allowed.indexOf(service) === -1) {
-    return "General Repairs";
-  }
-  return service;
-}
-
-function normalizeStatus(status) {
-  if (STAGE_ORDER.indexOf(status) !== -1) {
-    return status;
-  }
-  return "new";
-}
-
-function normalizeRequest(raw, index) {
-  var safe = raw && typeof raw === "object" ? raw : {};
-  var parsedDate = Date.parse(safe.dateISO);
-  var id = safe.id ? String(safe.id) : "legacy-" + index + "-" + Date.now();
-  var remoteJobId = "";
-
-  if (safe.remoteJobId && isUuid(safe.remoteJobId)) {
-    remoteJobId = String(safe.remoteJobId);
-  } else if (isUuid(id)) {
-    remoteJobId = id;
-  }
+  var unread = state.notifications.filter(function (notification) {
+    return !notification.read;
+  }).length;
 
   return {
-    id: id,
-    remoteJobId: remoteJobId || null,
-    name: safe.name ? String(safe.name) : "Unknown Customer",
-    email: safe.email ? String(safe.email) : "",
-    phone: safe.phone ? String(safe.phone) : "",
-    service: normalizeService(safe.service ? String(safe.service) : "General Repairs"),
-    city: safe.city && String(safe.city).trim() ? String(safe.city).trim() : "Unknown",
-    details: safe.details ? String(safe.details) : "",
-    dateISO: Number.isNaN(parsedDate) ? new Date().toISOString() : new Date(parsedDate).toISOString(),
-    status: normalizeStatus(safe.status ? String(safe.status) : "new")
+    available: state.availableJobs.length,
+    active: active,
+    scheduled: scheduled,
+    completed: completed,
+    unread: unread
   };
 }
 
-function normalizeRequests(records) {
+function normalizeJobList(records, source) {
   if (!Array.isArray(records)) {
     return [];
   }
 
-  return records.map(function (record, index) {
-    return normalizeRequest(record, index);
+  return records.map(function (record) {
+    return normalizeJob(record, source);
   });
 }
 
-function ensureRequestStore() {
-  var stored = readRequests();
-  var requests;
-
-  if (!Array.isArray(stored) || stored.length === 0) {
-    requests = createSeedRequests();
-  } else {
-    requests = normalizeRequests(stored);
-  }
-
-  writeRequests(requests);
-
-  if (readCounter() < requests.length) {
-    writeCounter(requests.length);
-  }
-
-  return requests;
+function normalizeJob(record, source) {
+  var safe = record && typeof record === "object" ? record : {};
+  return {
+    id: safe.id ? String(safe.id) : "",
+    customerName: safe.customerName ? String(safe.customerName) : "",
+    customerEmail: safe.customerEmail ? String(safe.customerEmail) : "",
+    customerPhone: safe.customerPhone ? String(safe.customerPhone) : "",
+    serviceType: safe.serviceType ? String(safe.serviceType) : "Service",
+    description: safe.description ? String(safe.description) : "",
+    city: safe.city ? String(safe.city) : "",
+    state: safe.state ? String(safe.state) : "",
+    status: source === "available" ? "pending_assignment" : String(safe.status || ""),
+    budgetMinCents: Number.isFinite(Number(safe.budgetMinCents)) ? Number(safe.budgetMinCents) : null,
+    budgetMaxCents: Number.isFinite(Number(safe.budgetMaxCents)) ? Number(safe.budgetMaxCents) : null,
+    estimatedValueCents: Number.isFinite(Number(safe.estimatedValueCents)) ? Number(safe.estimatedValueCents) : null,
+    distanceMiles: Number.isFinite(Number(safe.distanceMiles)) ? Number(safe.distanceMiles) : null,
+    createdAt: safe.createdAt || null,
+    updatedAt: safe.updatedAt || null,
+    scheduledAt: safe.scheduledAt || null,
+    startedAt: safe.startedAt || null,
+    completedAt: safe.completedAt || null,
+    assignment: safe.assignment && typeof safe.assignment === "object" ? safe.assignment : null
+  };
 }
 
-function createSeedRequests() {
-  var now = new Date();
-
-  function daysAgoISO(days) {
-    var date = new Date(now);
-    date.setDate(now.getDate() - days);
-    return date.toISOString();
+function normalizeNotifications(records) {
+  if (!Array.isArray(records)) {
+    return [];
   }
 
-  return [
-    {
-      id: "seed-1",
-      name: "John Smith",
-      email: "john@example.com",
-      phone: "",
-      service: "Plumbing",
-      city: "Columbus",
-      details: "Kitchen sink leak and faucet replacement.",
-      dateISO: daysAgoISO(0),
-      status: "new"
-    },
-    {
-      id: "seed-2",
-      name: "Angela Ruiz",
-      email: "angela@example.com",
-      phone: "",
-      service: "Electrical",
-      city: "Dayton",
-      details: "Install two pendant lights and troubleshoot switch.",
-      dateISO: daysAgoISO(1),
-      status: "scheduled"
-    },
-    {
-      id: "seed-3",
-      name: "Mark Lee",
-      email: "mark@example.com",
-      phone: "",
-      service: "Carpentry",
-      city: "Cincinnati",
-      details: "Build custom wall shelf in home office.",
-      dateISO: daysAgoISO(2),
-      status: "completed"
-    },
-    {
-      id: "seed-4",
-      name: "Rachel Adams",
-      email: "rachel@example.com",
-      phone: "",
-      service: "General Repairs",
-      city: "Cleveland",
-      details: "Repair interior door and patch hallway drywall.",
-      dateISO: daysAgoISO(3),
-      status: "new"
-    }
-  ];
-}
-
-function nextRequestId() {
-  var counter = readCounter() + 1;
-  writeCounter(counter);
-  return "req-" + counter + "-" + Date.now();
-}
-
-function readRequests() {
-  if (hasLocalStorage()) {
-    try {
-      var raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        return null;
-      }
-      return JSON.parse(raw);
-    } catch (error) {
-      return null;
-    }
-  }
-
-  return memoryStore.requests;
-}
-
-function writeRequests(requests) {
-  if (hasLocalStorage()) {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(requests));
-      return;
-    } catch (error) {
-      memoryStore.requests = requests;
-      return;
-    }
-  }
-
-  memoryStore.requests = requests;
-}
-
-function readCounter() {
-  if (hasLocalStorage()) {
-    try {
-      var raw = window.localStorage.getItem(COUNTER_KEY);
-      var parsed = parseInt(raw || "0", 10);
-      return Number.isNaN(parsed) ? 0 : parsed;
-    } catch (error) {
-      return memoryStore.counter;
-    }
-  }
-
-  return memoryStore.counter;
-}
-
-function writeCounter(value) {
-  if (hasLocalStorage()) {
-    try {
-      window.localStorage.setItem(COUNTER_KEY, String(value));
-      return;
-    } catch (error) {
-      memoryStore.counter = value;
-      return;
-    }
-  }
-
-  memoryStore.counter = value;
-}
-
-function hasLocalStorage() {
-  if (storageAvailableCache !== null) {
-    return storageAvailableCache;
-  }
-
-  try {
-    var key = "__gingies_storage_test__";
-    window.localStorage.setItem(key, "1");
-    window.localStorage.removeItem(key);
-    storageAvailableCache = true;
-  } catch (error) {
-    storageAvailableCache = false;
-  }
-
-  return storageAvailableCache;
-}
-
-function getRemoteJobId(request) {
-  if (!request || typeof request !== "object") {
-    return "";
-  }
-
-  if (request.remoteJobId && isUuid(request.remoteJobId)) {
-    return String(request.remoteJobId);
-  }
-
-  if (request.id && isUuid(request.id)) {
-    return String(request.id);
-  }
-
-  return "";
-}
-
-function isUuid(value) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
-}
-
-function getCityCoords(city) {
-  if (!city) {
-    return FALLBACK_COORDS;
-  }
-
-  var key = city.toLowerCase().trim();
-  if (CITY_COORDS[key]) {
-    return CITY_COORDS[key];
-  }
-
-  var match = Object.keys(CITY_COORDS).find(function (known) {
-    return key.indexOf(known) !== -1;
+  return records.map(function (record) {
+    var safe = record && typeof record === "object" ? record : {};
+    return {
+      id: safe.id ? String(safe.id) : "",
+      message: safe.message ? String(safe.message) : "Notification",
+      type: safe.type ? String(safe.type) : "system_alert",
+      read: Boolean(safe.read),
+      createdAt: safe.created_at || safe.createdAt || null,
+      jobId: safe.job_id || safe.jobId || null
+    };
   });
-
-  return match ? CITY_COORDS[match] : FALLBACK_COORDS;
 }
 
-function getDistanceMiles(fromCity, toCity) {
-  var from = getCityCoords(fromCity);
-  var to = getCityCoords(toCity);
-  var miles = haversineMiles(from[0], from[1], to[0], to[1]);
-
-  if (!Number.isFinite(miles)) {
+function formatServiceArea(profile) {
+  if (!profile) {
     return "--";
   }
 
-  return Math.round(miles) + " mi";
+  var city = profile.service_area_city || "";
+  var state = profile.service_area_state || "";
+  var area = [city, state].filter(Boolean).join(", ");
+  return area || "--";
 }
 
-function haversineMiles(lat1, lon1, lat2, lon2) {
-  var toRad = function (value) {
-    return (value * Math.PI) / 180;
-  };
+function formatLocation(job) {
+  if (!job) {
+    return "--";
+  }
 
-  var earthRadiusMiles = 3958.8;
-  var dLat = toRad(lat2 - lat1);
-  var dLon = toRad(lon2 - lon1);
-  var a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadiusMiles * c;
+  return [job.city, job.state].filter(Boolean).join(", ") || "--";
 }
 
-function getBudgetRange(service) {
-  var base = SERVICE_VALUES[service] || 700;
-  var min = Math.round((base * 0.85) / 10) * 10;
-  var max = Math.round((base * 1.15) / 10) * 10;
-  return formatCurrency(min) + " - " + formatCurrency(max);
+function formatEstimatedValue(job) {
+  if (Number.isFinite(job.estimatedValueCents) && job.estimatedValueCents > 0) {
+    return formatCurrency(job.estimatedValueCents / 100);
+  }
+
+  if (Number.isFinite(job.budgetMinCents) && Number.isFinite(job.budgetMaxCents)) {
+    return formatCurrency(job.budgetMinCents / 100) + " - " + formatCurrency(job.budgetMaxCents / 100);
+  }
+
+  if (Number.isFinite(job.budgetMinCents)) {
+    return "From " + formatCurrency(job.budgetMinCents / 100);
+  }
+
+  if (Number.isFinite(job.budgetMaxCents)) {
+    return "Up to " + formatCurrency(job.budgetMaxCents / 100);
+  }
+
+  return "Not provided";
 }
 
-function getStatusColor(status) {
-  if (status === "accepted") {
-    return "#4f6bed";
-  }
-  if (status === "scheduled") {
-    return "#2f80ed";
-  }
-  if (status === "in_progress") {
-    return "#7c5cff";
-  }
-  if (status === "completed") {
-    return "#1f7a3e";
-  }
-  return "#f08b2c";
+function formatDistance(distanceMiles) {
+  return Number.isFinite(distanceMiles) ? distanceMiles + " mi" : "Not available";
 }
 
 function escapeHtml(value) {

@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Explore Gingies Home Solutions services including plumbing, electrical, carpentry, and general home repairs.">
+  <meta name="description" content="Explore Gingies Home Solutions services for plumbing, electrical, carpentry, and general home repairs.">
   <title>Services | Gingies Home Solutions</title>
+  <link rel="icon" href="images/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/dashboard-layout.css">
 </head>
 
-<body>
+<body class="dashboard-body services-body">
 
 <header class="site-header">
   <div class="nav-container">
     <a class="brand" href="index.html" aria-label="Gingies Home Solutions home">
-      <span class="logo-placeholder" aria-hidden="true">GH</span>
+      <img src="images/gingies-logo.png" alt="Gingies Home Solutions logo" class="logo">
       <span class="site-title">Gingies Home Solutions</span>
     </a>
 
@@ -26,41 +29,167 @@
     <nav id="site-nav" class="site-nav" aria-label="Primary navigation">
       <a href="index.html">Home</a>
       <a href="services.html" class="active">Services</a>
-      <a href="contact.html">Contact</a>
+      <a href="index.html#quote">Request Quote</a>
       <a href="dashboard.html">Dashboard</a>
     </nav>
   </div>
 </header>
 
-<main class="services-page">
-  <section aria-labelledby="services-page-heading">
-    <h1 id="services-page-heading">Professional Home Services</h1>
-    <p class="services-intro">Experienced support for repair, maintenance, and improvement projects.</p>
+<main class="services-platform">
+  <section class="services-hero" aria-labelledby="services-hero-heading">
+    <div class="services-hero-inner">
+      <div class="services-hero-copy">
+        <p class="services-eyebrow">Home service coverage</p>
+        <h1 id="services-hero-heading">Reliable repair crews for the jobs homeowners need handled right.</h1>
+        <p class="services-hero-text">
+          Book plumbing, electrical, carpentry, and general repair help with clear scope,
+          steady communication, and local contractor support.
+        </p>
+        <div class="services-hero-actions" aria-label="Services actions">
+          <a class="services-primary-link" href="index.html#quote">Request a Quote</a>
+          <a class="services-secondary-link" href="dashboard.html">Contractor Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    <div class="service-grid">
-      <article class="service-card">
-        <img src="images/icon-placeholder.svg" alt="Plumbing service icon placeholder" class="service-icon">
-        <h2>Plumbing</h2>
-        <p>Leak repair, fixture installation, and routine plumbing maintenance.</p>
-      </article>
+  <section class="services-trust-strip" aria-label="Service standards">
+    <div class="services-page-shell">
+      <div class="services-trust-grid">
+        <div class="services-trust-item">
+          <span>Response standard</span>
+          <strong>Fast quote review</strong>
+        </div>
+        <div class="services-trust-item">
+          <span>Project fit</span>
+          <strong>Right crew, right job</strong>
+        </div>
+        <div class="services-trust-item">
+          <span>Service area</span>
+          <strong>Greater Columbus Area</strong>
+        </div>
+      </div>
+    </div>
+  </section>
 
-      <article class="service-card">
-        <img src="images/icon-placeholder.svg" alt="Electrical service icon placeholder" class="service-icon">
-        <h2>Electrical</h2>
-        <p>Lighting upgrades, outlet repairs, and electrical troubleshooting.</p>
-      </article>
+  <section class="services-page-section" aria-labelledby="services-list-heading">
+    <div class="services-page-shell">
+      <div class="services-section-header">
+        <div>
+          <p class="services-section-kicker">Core services</p>
+          <h2 id="services-list-heading">Choose the work you need done.</h2>
+          <p>Each request is routed with the project details contractors need before they accept the job.</p>
+        </div>
+        <span class="panel-badge">Residential work</span>
+      </div>
 
-      <article class="service-card">
-        <img src="images/icon-placeholder.svg" alt="Carpentry service icon placeholder" class="service-icon">
-        <h2>Carpentry</h2>
-        <p>Trim work, custom shelves, and practical finish carpentry.</p>
-      </article>
+      <div class="services-panel-grid">
+        <article class="dashboard-panel services-tile">
+          <span class="service-badge">Plumbing</span>
+          <h3>Leaks, fixtures, and water-line repairs</h3>
+          <p>Help for practical plumbing issues that need a clear diagnosis and dependable fix.</p>
+          <ul class="services-checklist">
+            <li>Faucet and fixture replacement</li>
+            <li>Leak repair and troubleshooting</li>
+            <li>Sink, drain, and supply-line work</li>
+          </ul>
+        </article>
 
-      <article class="service-card">
-        <img src="images/icon-placeholder.svg" alt="General repairs service icon placeholder" class="service-icon">
-        <h2>General Repairs</h2>
-        <p>Drywall, doors, small renovations, and everyday home fixes.</p>
-      </article>
+        <article class="dashboard-panel services-tile">
+          <span class="service-badge">Electrical</span>
+          <h3>Lighting, outlets, and common electrical repairs</h3>
+          <p>Support for updates and repairs where safety, clarity, and clean work matter.</p>
+          <ul class="services-checklist">
+            <li>Lighting installation</li>
+            <li>Outlet and switch service</li>
+            <li>Basic troubleshooting</li>
+          </ul>
+        </article>
+
+        <article class="dashboard-panel services-tile">
+          <span class="service-badge">Carpentry</span>
+          <h3>Trim, shelving, and practical finish work</h3>
+          <p>Detailed carpentry for improvements that make rooms feel finished and useful.</p>
+          <ul class="services-checklist">
+            <li>Custom shelving</li>
+            <li>Trim and finish repair</li>
+            <li>Door and hardware adjustments</li>
+          </ul>
+        </article>
+
+        <article class="dashboard-panel services-tile">
+          <span class="service-badge">General repairs</span>
+          <h3>Everyday fixes that keep the home working</h3>
+          <p>Reliable help for punch lists, small repairs, and maintenance projects.</p>
+          <ul class="services-checklist">
+            <li>Drywall patching</li>
+            <li>Door and cabinet repairs</li>
+            <li>Small maintenance tasks</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="services-page-section" aria-labelledby="services-process-heading">
+    <div class="services-page-shell">
+      <div class="services-section-header">
+        <div>
+          <p class="services-section-kicker">How requests move</p>
+          <h2 id="services-process-heading">Clear intake from quote to scheduled work.</h2>
+          <p>Homeowners get a direct path to request help, while contractors get enough context to accept confidently.</p>
+        </div>
+      </div>
+
+      <div class="services-detail-grid">
+        <article class="dashboard-panel">
+          <ol class="services-process-list">
+            <li>
+              <span class="services-step-number">1</span>
+              <div>
+                <h3>Share the project</h3>
+                <p>Send the service type, city, contact details, and a short description of the work.</p>
+              </div>
+            </li>
+            <li>
+              <span class="services-step-number">2</span>
+              <div>
+                <h3>Get matched to the right workstream</h3>
+                <p>Requests are organized by service, location, and current job status.</p>
+              </div>
+            </li>
+            <li>
+              <span class="services-step-number">3</span>
+              <div>
+                <h3>Move from accepted to complete</h3>
+                <p>Contractors can track accepted jobs, schedule work, and close completed requests.</p>
+              </div>
+            </li>
+          </ol>
+        </article>
+
+        <aside class="dashboard-panel services-coverage-card" aria-labelledby="services-coverage-heading">
+          <div>
+            <p class="services-section-kicker">Local coverage</p>
+            <h3 id="services-coverage-heading">Built for nearby home-service work.</h3>
+            <p>Gingies focuses on practical residential projects across the current service area.</p>
+          </div>
+          <ul class="services-coverage-list">
+            <li>Columbus</li>
+            <li>Dayton</li>
+            <li>Cincinnati</li>
+            <li>Cleveland</li>
+          </ul>
+        </aside>
+      </div>
+
+      <section class="services-cta-band" aria-labelledby="services-cta-heading">
+        <div>
+          <h2 id="services-cta-heading">Ready to price the work?</h2>
+          <p>Send the details once and keep the request moving through the Gingies workflow.</p>
+        </div>
+        <a class="services-primary-link" href="index.html#quote">Start Request</a>
+      </section>
     </div>
   </section>
 </main>

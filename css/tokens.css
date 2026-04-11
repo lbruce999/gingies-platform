@@ -1,0 +1,17 @@
+:root {
+  --gingies-primary: #E85A00;
+  --gingies-primary-dark: #B84300;
+  --gingies-brown: #6A2E00;
+  --gingies-tan: #E6D3A3;
+  --gingies-green: #1F5A34;
+  --gingies-cream: #FAF6ED;
+  --gingies-deep-green: #173F25;
+  --gingies-ink: #21160D;
+  --gingies-muted: #6F6258;
+  --gingies-surface: #FFFFFF;
+  --gingies-surface-warm: #FFFCF7;
+  --gingies-line: #E7DED0;
+  --gingies-soft-line: #EFE8DD;
+  --gingies-danger: #B42318;
+  --gingies-success: #1F5A34;
+}

@@ -7,6 +7,7 @@ import { authRequired } from "../middleware/auth.js";
 import { httpError } from "../utils/http-error.js";
 import { createAccessToken } from "../utils/token.js";
 import { logAuditEvent } from "../services/audit.js";
+import { SERVICE_TYPES } from "../utils/constants.js";
 
 var router = express.Router();
 
@@ -28,7 +29,7 @@ var registerSchema = z.object({
   phone: z.string().min(3).optional(),
   serviceAreaCity: z.string().min(1).optional(),
   serviceAreaState: z.string().min(1).max(2).optional(),
-  servicesOffered: z.array(z.enum(["Plumbing", "Electrical", "Carpentry", "General Repairs"])).optional()
+  servicesOffered: z.array(z.enum(SERVICE_TYPES)).optional()
 });
 
 var loginSchema = z.object({
@@ -94,7 +95,7 @@ async function registerUser(req, res, next) {
         var contractorId = contractorResult.rows[0].id;
         var services = body.servicesOffered && body.servicesOffered.length > 0
           ? body.servicesOffered
-          : ["General Repairs"];
+          : ["General Home Repair"];
 
         for (var i = 0; i < services.length; i += 1) {
           await client.query(
