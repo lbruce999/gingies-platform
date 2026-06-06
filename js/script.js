@@ -1,4 +1,4 @@
-var LOGIN_PAGE_PATH = "loginPage.html";
+const LOGIN_PAGE_PATH = "loginPage.html";
 var DASHBOARD_PAGE_PATH = "dashboard.html";
 var apiClient = window.GingiesApi || null;
 
@@ -1462,3 +1462,5 @@ function escapeHtml(value) {
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+
