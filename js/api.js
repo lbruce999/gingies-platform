@@ -4,6 +4,7 @@
   var LOCAL_HOSTS = ["localhost", "127.0.0.1"];
   var TOKEN_STORAGE_KEY = "gingies.auth.token";
   var USER_STORAGE_KEY = "gingies.auth.user";
+  const SUPABASE_URL = 1;
 
   function isLocalHost(hostname) {
     if (!hostname) {
