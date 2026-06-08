@@ -4,7 +4,28 @@
   var LOCAL_HOSTS = ["localhost", "127.0.0.1"];
   var TOKEN_STORAGE_KEY = "gingies.auth.token";
   var USER_STORAGE_KEY = "gingies.auth.user";
-  const SUPABASE_URL = 1;
+  var PASSWORD_RESET_PAGE_PATH = "reset-password.html";
+  var SIGNUP_REDIRECT_PATH = "dashboard.html";
+
+  var authClient = createAuthClient();
+  var authBootstrapPromise = authClient
+    ? authClient.auth.getSession().then(function (result) {
+      if (result && result.error) {
+        return null;
+      }
+      return setCachedSession(result && result.data ? result.data.session : null);
+    }).catch(function () {
+      return null;
+    })
+    : Promise.resolve(null);
+  var cachedSession = null;
+  var cachedRenderUser = null;
+
+  if (authClient) {
+    authClient.auth.onAuthStateChange(function (_event, session) {
+      setCachedSession(session || null);
+    });
+  }
 
   function isLocalHost(hostname) {
     if (!hostname) {
@@ -25,6 +46,26 @@
     }
 
     return PRODUCTION_API_BASE;
+  }
+
+  function createAuthClient() {
+    var supabaseLib = global.supabase;
+    var supabaseUrl = global.__GINGIES_SUPABASE_URL__;
+    var supabaseAnonKey = global.__GINGIES_SUPABASE_ANON_KEY__;
+
+    if (!supabaseLib || typeof supabaseLib.createClient !== "function") {
+      return null;
+    }
+
+    if (typeof supabaseUrl !== "string" || !supabaseUrl.trim()) {
+      return null;
+    }
+
+    if (typeof supabaseAnonKey !== "string" || !supabaseAnonKey.trim()) {
+      return null;
+    }
+
+    return supabaseLib.createClient(supabaseUrl.trim(), supabaseAnonKey.trim());
   }
 
   function parseResponseBody(response) {
@@ -81,68 +122,12 @@
   function getStorage() {
     try {
       return global.localStorage || null;
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }
 
-  function getStoredToken() {
-    var storage = getStorage();
-    if (!storage) {
-      return "";
-    }
-
-    return storage.getItem(TOKEN_STORAGE_KEY) || "";
-  }
-
-  function setStoredToken(token) {
-    var storage = getStorage();
-    if (!storage) {
-      return;
-    }
-
-    if (!token) {
-      storage.removeItem(TOKEN_STORAGE_KEY);
-      return;
-    }
-
-    storage.setItem(TOKEN_STORAGE_KEY, String(token));
-  }
-
-  function getStoredUser() {
-    var storage = getStorage();
-    if (!storage) {
-      return null;
-    }
-
-    var raw = storage.getItem(USER_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    try {
-      return JSON.parse(raw);
-    } catch (error) {
-      storage.removeItem(USER_STORAGE_KEY);
-      return null;
-    }
-  }
-
-  function setStoredUser(user) {
-    var storage = getStorage();
-    if (!storage) {
-      return;
-    }
-
-    if (!user || typeof user !== "object") {
-      storage.removeItem(USER_STORAGE_KEY);
-      return;
-    }
-
-    storage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-  }
-
-  function clearSession() {
+  function clearLegacySession() {
     var storage = getStorage();
     if (!storage) {
       return;
@@ -152,56 +137,145 @@
     storage.removeItem(USER_STORAGE_KEY);
   }
 
-  function saveSession(payload) {
-    if (payload && payload.token) {
-      setStoredToken(payload.token);
-    }
-    if (payload && payload.user) {
-      setStoredUser(payload.user);
-    }
-    return payload;
+  function createAuthError(message) {
+    return new Error(message || "Authentication is unavailable right now.");
   }
 
-  function buildAuthHeaders(headers) {
-    var nextHeaders = headers ? Object.assign({}, headers) : {};
-    var token = getStoredToken();
+  function getAbsoluteUrl(path) {
+    try {
+      return new URL(path, global.location.href).toString();
+    } catch (_error) {
+      return path;
+    }
+  }
 
-    if (token) {
-      nextHeaders.Authorization = "Bearer " + token;
+  function isAuthConfigured() {
+    return Boolean(authClient);
+  }
+
+  function setCachedSession(session) {
+    cachedSession = session || null;
+    if (!cachedSession) {
+      cachedRenderUser = null;
+      clearLegacySession();
+    }
+    return cachedSession;
+  }
+
+  function normalizeRenderUser(user) {
+    if (!user || typeof user !== "object") {
+      return null;
+    }
+
+    return {
+      id: user.id || null,
+      email: user.email || "",
+      username: user.username || "",
+      role: user.role || null
+    };
+  }
+
+  function normalizeSupabaseUser(user) {
+    if (!user || typeof user !== "object") {
+      return null;
+    }
+
+    var userMetadata = user.user_metadata && typeof user.user_metadata === "object"
+      ? user.user_metadata
+      : {};
+    var appMetadata = user.app_metadata && typeof user.app_metadata === "object"
+      ? user.app_metadata
+      : {};
+    var username = typeof userMetadata.username === "string" && userMetadata.username.trim()
+      ? userMetadata.username.trim()
+      : "";
+    var role = null;
+
+    if (typeof userMetadata.role === "string" && userMetadata.role.trim()) {
+      role = userMetadata.role.trim();
+    } else if (
+      typeof appMetadata.role === "string" &&
+      appMetadata.role.trim() &&
+      appMetadata.role !== "authenticated"
+    ) {
+      role = appMetadata.role.trim();
+    }
+
+    return {
+      id: user.id || null,
+      email: user.email || "",
+      username: username || user.email || "",
+      role: role
+    };
+  }
+
+  async function getCurrentSession() {
+    if (!authClient) {
+      return null;
+    }
+
+    await authBootstrapPromise;
+
+    var result = await authClient.auth.getSession();
+    if (result && result.error) {
+      throw createAuthError(result.error.message || "Unable to load your session.");
+    }
+
+    return setCachedSession(result && result.data ? result.data.session : null);
+  }
+
+  async function getAuthHeader(headers) {
+    var nextHeaders = headers ? Object.assign({}, headers) : {};
+    var session = await getCurrentSession();
+
+    if (session && session.access_token) {
+      nextHeaders.Authorization = "Bearer " + session.access_token;
     }
 
     return nextHeaders;
   }
 
-  function decodeBase64Url(value) {
-    if (!value) {
-      return "";
-    }
-
-    var normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-    var padded = normalized + "===".slice((normalized.length + 3) % 4);
-    return global.atob(padded);
+  async function authApiRequest(path, options) {
+    var requestOptions = options ? Object.assign({}, options) : {};
+    requestOptions.headers = await getAuthHeader(requestOptions.headers);
+    return apiRequest(path, requestOptions);
   }
 
-  function decodeToken(token) {
-    if (!token || token.split(".").length < 2 || typeof global.atob !== "function") {
-      return null;
-    }
+  function getStoredToken() {
+    return cachedSession && cachedSession.access_token ? cachedSession.access_token : "";
+  }
 
-    try {
-      var payload = decodeBase64Url(token.split(".")[1]);
-      return JSON.parse(payload);
-    } catch (error) {
-      return null;
-    }
+  function getStoredUser() {
+    return cachedRenderUser || getSessionUser();
+  }
+
+  function setStoredUser(user) {
+    cachedRenderUser = normalizeRenderUser(user);
+    return cachedRenderUser;
+  }
+
+  function clearSession() {
+    cachedRenderUser = null;
+    setCachedSession(null);
   }
 
   function getSessionUser() {
-    return getStoredUser() || decodeToken(getStoredToken());
+    if (!cachedSession || !cachedSession.user) {
+      return null;
+    }
+
+    return normalizeSupabaseUser(cachedSession.user);
   }
 
   function isAuthenticated() {
     return Boolean(getStoredToken());
+  }
+
+  function isRecoveryFlow() {
+    var search = global.location && global.location.search ? global.location.search : "";
+    var hash = global.location && global.location.hash ? global.location.hash : "";
+    var urlBits = search + "&" + hash;
+    return /type=recovery|access_token=|refresh_token=|token_hash=|code=/.test(urlBits);
   }
 
   function createJob(payload) {
@@ -227,34 +301,26 @@
   }
 
   function getContractorJobs() {
-    return apiRequest("/api/contractor/jobs", {
-      headers: buildAuthHeaders()
-    });
+    return authApiRequest("/api/contractor/jobs");
   }
 
   function getAvailableContractorJobs() {
-    return apiRequest("/api/contractor/jobs/available", {
-      headers: buildAuthHeaders()
-    });
+    return authApiRequest("/api/contractor/jobs/available");
   }
 
   function getContractorNotifications() {
-    return apiRequest("/api/contractor/notifications", {
-      headers: buildAuthHeaders()
-    });
+    return authApiRequest("/api/contractor/notifications");
   }
 
   function acceptJob(jobId) {
-    return apiRequest("/api/jobs/" + encodeURIComponent(jobId) + "/accept", {
-      method: "POST",
-      headers: buildAuthHeaders()
+    return authApiRequest("/api/jobs/" + encodeURIComponent(jobId) + "/accept", {
+      method: "POST"
     });
   }
 
   function updateJobStatus(jobId, status) {
-    return apiRequest("/api/jobs/" + encodeURIComponent(jobId) + "/status", {
+    return authApiRequest("/api/jobs/" + encodeURIComponent(jobId) + "/status", {
       method: "PATCH",
-      headers: buildAuthHeaders(),
       body: JSON.stringify({
         status: status
       })
@@ -262,54 +328,141 @@
   }
 
   function markContractorNotificationRead(notificationId) {
-    return apiRequest("/api/contractor/notifications/" + encodeURIComponent(notificationId) + "/read", {
-      method: "POST",
-      headers: buildAuthHeaders()
+    return authApiRequest("/api/contractor/notifications/" + encodeURIComponent(notificationId) + "/read", {
+      method: "POST"
     });
   }
 
-  function signup(payload) {
-    return apiRequest("/api/signup", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }).then(saveSession);
-  }
+  async function signup(payload) {
+    if (!authClient) {
+      throw createAuthError("Supabase Auth is not configured.");
+    }
 
-  function login(payload) {
-    return apiRequest("/api/login", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }).then(saveSession);
-  }
+    var email = payload && typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+    var password = payload && typeof payload.password === "string" ? payload.password : "";
+    var username = payload && typeof payload.username === "string" ? payload.username.trim() : "";
 
-  function logout() {
-    var token = getStoredToken();
-    var request = token
-      ? apiRequest("/api/logout", {
-        method: "POST",
-        headers: buildAuthHeaders()
-      })
-      : Promise.resolve(null);
+    if (!email || !password || !username) {
+      throw createAuthError("Enter a username, a valid email, and a password with at least 8 characters.");
+    }
 
-    return request
-      .catch(function () {
-        return null;
-      })
-      .then(function (result) {
-        clearSession();
-        return result;
-      });
-  }
-
-  function getCurrentUser() {
-    return apiRequest("/api/me", {
-      headers: buildAuthHeaders()
-    }).then(function (payload) {
-      if (payload && payload.user) {
-        setStoredUser(payload.user);
+    var result = await authClient.auth.signUp({
+      email: email,
+      password: password,
+      options: {
+        data: {
+          username: username
+        },
+        emailRedirectTo: getAbsoluteUrl(SIGNUP_REDIRECT_PATH)
       }
-      return payload;
     });
+
+    if (result && result.error) {
+      throw createAuthError(result.error.message || "Unable to create your account.");
+    }
+
+    setCachedSession(result && result.data ? result.data.session : null);
+    cachedRenderUser = null;
+    clearLegacySession();
+
+    return {
+      session: result && result.data ? result.data.session || null : null,
+      user: normalizeSupabaseUser(result && result.data ? result.data.user : null),
+      needsEmailConfirmation: !(result && result.data && result.data.session)
+    };
+  }
+
+  async function login(payload) {
+    if (!authClient) {
+      throw createAuthError("Supabase Auth is not configured.");
+    }
+
+    var email = payload && typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+    var password = payload && typeof payload.password === "string" ? payload.password : "";
+
+    if (!email || !password) {
+      throw createAuthError("Enter your email address and password.");
+    }
+
+    var result = await authClient.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+
+    if (result && result.error) {
+      throw createAuthError(result.error.message || "Unable to sign in.");
+    }
+
+    setCachedSession(result && result.data ? result.data.session : null);
+    cachedRenderUser = null;
+    clearLegacySession();
+
+    return {
+      session: result && result.data ? result.data.session || null : null,
+      user: normalizeSupabaseUser(result && result.data ? result.data.user : null)
+    };
+  }
+
+  async function logout() {
+    if (authClient) {
+      var result = await authClient.auth.signOut();
+      if (result && result.error) {
+        throw createAuthError(result.error.message || "Unable to log out.");
+      }
+    }
+
+    clearSession();
+    return null;
+  }
+
+  async function resetPassword(email) {
+    if (!authClient) {
+      throw createAuthError("Supabase Auth is not configured.");
+    }
+
+    var normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    if (!normalizedEmail) {
+      throw createAuthError("Enter a valid email address.");
+    }
+
+    var result = await authClient.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: getAbsoluteUrl(PASSWORD_RESET_PAGE_PATH)
+    });
+
+    if (result && result.error) {
+      throw createAuthError(result.error.message || "Unable to send a password reset email.");
+    }
+
+    return result && result.data ? result.data : null;
+  }
+
+  async function updatePassword(password) {
+    if (!authClient) {
+      throw createAuthError("Supabase Auth is not configured.");
+    }
+
+    var nextPassword = typeof password === "string" ? password : "";
+    if (nextPassword.length < 8) {
+      throw createAuthError("Enter a password with at least 8 characters.");
+    }
+
+    var result = await authClient.auth.updateUser({
+      password: nextPassword
+    });
+
+    if (result && result.error) {
+      throw createAuthError(result.error.message || "Unable to update your password.");
+    }
+
+    return normalizeSupabaseUser(result && result.data ? result.data.user : null);
+  }
+
+  async function getCurrentUser() {
+    var payload = await authApiRequest("/api/me");
+    if (payload && payload.user) {
+      setStoredUser(payload.user);
+    }
+    return payload;
   }
 
   global.GingiesApi = {
@@ -327,12 +480,18 @@
     signup: signup,
     login: login,
     logout: logout,
+    resetPassword: resetPassword,
+    updatePassword: updatePassword,
     getCurrentUser: getCurrentUser,
+    getCurrentSession: getCurrentSession,
+    getAuthHeader: getAuthHeader,
     getStoredToken: getStoredToken,
     getStoredUser: getStoredUser,
     getSessionUser: getSessionUser,
     setStoredUser: setStoredUser,
     clearSession: clearSession,
-    isAuthenticated: isAuthenticated
+    isAuthenticated: isAuthenticated,
+    isAuthConfigured: isAuthConfigured,
+    isRecoveryFlow: isRecoveryFlow
   };
 })(window);

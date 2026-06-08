@@ -1,5 +1,6 @@
-const LOGIN_PAGE_PATH = "loginPage.html";
+var LOGIN_PAGE_PATH = "loginPage.html";
 var DASHBOARD_PAGE_PATH = "dashboard.html";
+var FORGOT_PASSWORD_PAGE_PATH = "forgotpwd.html";
 var apiClient = window.GingiesApi || null;
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -7,8 +8,17 @@ document.addEventListener("DOMContentLoaded", function () {
   initQuoteForm();
   initSignupForm();
   initLoginForm();
+  initForgotPasswordPage();
   initDashboardApp();
 });
+
+function hasSupabaseAuth() {
+  return Boolean(
+    apiClient &&
+    typeof apiClient.isAuthConfigured === "function" &&
+    apiClient.isAuthConfigured()
+  );
+}
 
 function initSiteNav() {
   var navToggle = document.querySelector(".nav-toggle");
@@ -133,7 +143,7 @@ function initQuoteForm() {
   showIntakeStep(currentStep, steps, progressItems, progressFill, nextButton, backButton, submitButton);
 }
 
-function initSignupForm() {
+async function initSignupForm() {
   var signupForm = document.getElementById("signupForm");
   var signupMessage = document.getElementById("signupMessage");
 
@@ -141,13 +151,19 @@ function initSignupForm() {
     return;
   }
 
-  if (!apiClient || typeof apiClient.signup !== "function") {
+  if (!hasSupabaseAuth() || typeof apiClient.signup !== "function" || typeof apiClient.getCurrentSession !== "function") {
     setFormMessage(signupMessage, "Authentication is unavailable right now. Please try again later.", "error");
     return;
   }
 
-  if (typeof apiClient.isAuthenticated === "function" && apiClient.isAuthenticated()) {
-    window.location.replace(DASHBOARD_PAGE_PATH);
+  try {
+    var existingSession = await apiClient.getCurrentSession();
+    if (existingSession) {
+      window.location.replace(DASHBOARD_PAGE_PATH);
+      return;
+    }
+  } catch (error) {
+    setFormMessage(signupMessage, getRequestErrorMessage(error, "Authentication is unavailable right now. Please try again later."), "error");
     return;
   }
 
@@ -193,16 +209,21 @@ function initSignupForm() {
     }
 
     try {
-      await apiClient.signup({
+      var result = await apiClient.signup({
         username: username.value.trim(),
         email: email.value.trim(),
         password: password.value
       });
 
-      setFormMessage(signupMessage, "Account created. Redirecting to your dashboard...", "success");
-      window.setTimeout(function () {
-        window.location.assign(DASHBOARD_PAGE_PATH);
-      }, 350);
+      if (result && result.session) {
+        setFormMessage(signupMessage, "Account created. Redirecting to your dashboard...", "success");
+        window.setTimeout(function () {
+          window.location.assign(DASHBOARD_PAGE_PATH);
+        }, 350);
+      } else {
+        signupForm.reset();
+        setFormMessage(signupMessage, "Account created. Check your email to confirm your account, then sign in.", "success");
+      }
     } catch (error) {
       setFormMessage(signupMessage, getRequestErrorMessage(error, "Unable to create your account."), "error");
     } finally {
@@ -214,7 +235,7 @@ function initSignupForm() {
   });
 }
 
-function initLoginForm() {
+async function initLoginForm() {
   var loginForm = document.getElementById("loginForm");
   var loginMessage = document.getElementById("loginMessage");
 
@@ -222,13 +243,19 @@ function initLoginForm() {
     return;
   }
 
-  if (!apiClient || typeof apiClient.login !== "function") {
+  if (!hasSupabaseAuth() || typeof apiClient.login !== "function" || typeof apiClient.getCurrentSession !== "function") {
     setFormMessage(loginMessage, "Authentication is unavailable right now. Please try again later.", "error");
     return;
   }
 
-  if (typeof apiClient.isAuthenticated === "function" && apiClient.isAuthenticated()) {
-    window.location.replace(DASHBOARD_PAGE_PATH);
+  try {
+    var existingSession = await apiClient.getCurrentSession();
+    if (existingSession) {
+      window.location.replace(DASHBOARD_PAGE_PATH);
+      return;
+    }
+  } catch (error) {
+    setFormMessage(loginMessage, getRequestErrorMessage(error, "Authentication is unavailable right now. Please try again later."), "error");
     return;
   }
 
@@ -246,7 +273,7 @@ function initLoginForm() {
     clearFormMessage(loginMessage);
 
     var hasError = false;
-    if (!identifier.value.trim()) {
+    if (!identifier.value.trim() || !isValidEmail(identifier.value.trim())) {
       markInvalid(identifier);
       hasError = true;
     }
@@ -256,7 +283,7 @@ function initLoginForm() {
     }
 
     if (hasError) {
-      setFormMessage(loginMessage, "Enter your email or username and password.", "error");
+      setFormMessage(loginMessage, "Enter your email address and password.", "error");
       return;
     }
 
@@ -270,7 +297,7 @@ function initLoginForm() {
 
     try {
       await apiClient.login({
-        identifier: identifier.value.trim(),
+        email: identifier.value.trim(),
         password: password.value
       });
 
@@ -289,6 +316,225 @@ function initLoginForm() {
       }
     }
   });
+}
+
+async function initForgotPasswordPage() {
+  var requestForm = document.getElementById("forgotPasswordRequestForm");
+  var requestMessage = document.getElementById("forgotPasswordRequestMessage");
+  var requestPanel = document.getElementById("forgotPasswordRequestPanel");
+  var resetForm = document.getElementById("forgotPasswordResetForm");
+  var resetMessage = document.getElementById("forgotPasswordResetMessage");
+  var resetPanel = document.getElementById("forgotPasswordResetPanel");
+  var isResetOnlyPage = Boolean(resetForm && !requestForm);
+
+  if (!requestForm && !resetForm) {
+    return;
+  }
+
+  if (
+    !hasSupabaseAuth() ||
+    typeof apiClient.resetPassword !== "function" ||
+    typeof apiClient.updatePassword !== "function" ||
+    typeof apiClient.getCurrentSession !== "function"
+  ) {
+    if (requestMessage) {
+      setFormMessage(requestMessage, "Authentication is unavailable right now. Please try again later.", "error");
+    }
+    if (resetMessage) {
+      setFormMessage(resetMessage, "Authentication is unavailable right now. Please try again later.", "error");
+    }
+    return;
+  }
+
+  var isRecoveryMode = typeof apiClient.isRecoveryFlow === "function" && apiClient.isRecoveryFlow();
+  var session = null;
+
+  try {
+    session = await apiClient.getCurrentSession();
+  } catch (error) {
+    if (requestMessage) {
+      setFormMessage(requestMessage, getRequestErrorMessage(error, "Unable to load the password reset screen."), "error");
+    }
+    return;
+  }
+
+  if (isRecoveryMode || isResetOnlyPage) {
+    if (session && resetPanel) {
+      resetPanel.hidden = false;
+    }
+    if (requestPanel) {
+      requestPanel.hidden = Boolean(session);
+    }
+    if (!session && requestMessage) {
+      setFormMessage(requestMessage, "This recovery link is invalid or expired. Request a new password reset email below.", "error");
+    }
+    if (!session && resetMessage) {
+      setFormMessage(resetMessage, "This recovery link is invalid or expired. Request a new password reset email.", "error");
+    }
+  }
+
+  if (requestForm) {
+    var emailField = document.getElementById("forgotPasswordEmail");
+
+    requestForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      if (!emailField) {
+        return;
+      }
+
+      clearInvalid(emailField);
+      clearFormMessage(requestMessage);
+
+      if (!emailField.value.trim() || !isValidEmail(emailField.value.trim())) {
+        markInvalid(emailField);
+        setFormMessage(requestMessage, "Enter a valid email address.", "error");
+        return;
+      }
+
+      var submitButton = requestForm.querySelector("button[type='submit']");
+      var previousLabel = submitButton ? submitButton.textContent : "";
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Sending reset link...";
+      }
+
+      try {
+        await apiClient.resetPassword(emailField.value.trim());
+        setFormMessage(requestMessage, "Check your email for a password reset link.", "success");
+      } catch (error) {
+        setFormMessage(requestMessage, getRequestErrorMessage(error, "Unable to send a password reset email."), "error");
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = previousLabel || "Send reset link";
+        }
+      }
+    });
+  }
+
+  if (resetForm) {
+    var passwordField = document.getElementById("forgotPasswordNewPassword");
+
+    resetForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      if (!passwordField) {
+        return;
+      }
+
+      clearInvalid(passwordField);
+      clearFormMessage(resetMessage);
+
+      if (passwordField.value.length < 8) {
+        markInvalid(passwordField);
+        setFormMessage(resetMessage, "Enter a password with at least 8 characters.", "error");
+        return;
+      }
+
+      var submitButton = resetForm.querySelector("button[type='submit']");
+      var previousLabel = submitButton ? submitButton.textContent : "";
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Updating password...";
+      }
+
+      try {
+        await apiClient.updatePassword(passwordField.value);
+        setFormMessage(resetMessage, "Password updated. Redirecting to sign in...", "success");
+        window.setTimeout(function () {
+          window.location.assign(LOGIN_PAGE_PATH);
+        }, 500);
+      } catch (error) {
+        setFormMessage(resetMessage, getRequestErrorMessage(error, "Unable to update your password."), "error");
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = previousLabel || "Update password";
+        }
+      }
+    });
+  }
+}
+
+async function initDashboardApp() {
+  var app = document.getElementById("dashboardApp");
+  if (!app) {
+    return;
+  }
+
+  var state = {
+    assignedJobs: [],
+    availableJobs: [],
+    notifications: [],
+    authUser: getCurrentAuthUser(),
+    profile: null,
+    loadError: ""
+  };
+
+  var elements = {
+    app: app,
+    loading: document.getElementById("dashboardLoading"),
+    overlay: document.getElementById("dashboardOverlay"),
+    sidebarToggle: document.getElementById("sidebarToggle"),
+    sidebarLinks: Array.prototype.slice.call(document.querySelectorAll(".sidebar-link")),
+    metricAvailable: document.getElementById("metricAvailableJobs"),
+    metricActive: document.getElementById("metricActiveJobs"),
+    metricScheduled: document.getElementById("metricScheduledJobs"),
+    metricCompleted: document.getElementById("metricCompletedJobs"),
+    sidebarAvailable: document.getElementById("sidebarAvailableCount"),
+    sidebarScheduled: document.getElementById("sidebarScheduledCount"),
+    sidebarUnread: document.getElementById("sidebarUnreadCount"),
+    sidebarServiceArea: document.getElementById("sidebarServiceArea"),
+    alertBadge: document.getElementById("topbarAlertBadge"),
+    alertCount: document.getElementById("topbarAvailableCount"),
+    tableBody: document.getElementById("requestsTableBody"),
+    availableJobsList: document.getElementById("availableJobsList"),
+    availableJobsCount: document.getElementById("availableJobsCount"),
+    pipelineLists: Array.prototype.slice.call(document.querySelectorAll(".pipeline-list")),
+    notificationsList: document.getElementById("notificationsList"),
+    notificationsCount: document.getElementById("notificationsCount"),
+    profileName: document.getElementById("profileName"),
+    profileRating: document.getElementById("profileRating"),
+    profileCompleted: document.getElementById("profileCompleted"),
+    profileActive: document.getElementById("profileActive"),
+    profileArea: document.getElementById("profileArea"),
+    profileServices: document.getElementById("profileServices"),
+    profileStatusBadge: document.getElementById("profileStatusBadge"),
+    detailsModal: document.getElementById("detailsModal"),
+    detailsClose: document.getElementById("detailsClose"),
+    topbarUser: document.getElementById("topbarUser"),
+    logoutButton: document.getElementById("logoutButton")
+  };
+
+  bindDashboardEvents(state, elements);
+
+  if (!hasSupabaseAuth() || typeof apiClient.getCurrentSession !== "function") {
+    state.loadError = "Supabase Auth is unavailable right now. Check your frontend auth configuration.";
+    renderDashboard(state, elements);
+    revealDashboard(elements);
+    return;
+  }
+
+  try {
+    var session = await apiClient.getCurrentSession();
+    if (!session) {
+      redirectToLogin();
+      return;
+    }
+  } catch (error) {
+    state.loadError = getRequestErrorMessage(error, "Unable to load your session.");
+    renderDashboard(state, elements);
+    revealDashboard(elements);
+    return;
+  }
+
+  state.authUser = getCurrentAuthUser();
+
+  await loadDashboardData(state, elements);
+  revealDashboard(elements);
 }
 
 function showIntakeStep(stepIndex, steps, progressItems, progressFill, nextButton, backButton, submitButton) {
@@ -547,69 +793,6 @@ function resetServiceOptions(serviceOptions, serviceInput) {
   });
 }
 
-function initDashboardApp() {
-  var app = document.getElementById("dashboardApp");
-  if (!app) {
-    return;
-  }
-
-  if (!apiClient || typeof apiClient.getStoredToken !== "function" || !apiClient.getStoredToken()) {
-    redirectToLogin();
-    return;
-  }
-
-  var state = {
-    assignedJobs: [],
-    availableJobs: [],
-    notifications: [],
-    authUser: getCurrentAuthUser(),
-    profile: null,
-    loadError: ""
-  };
-
-  var elements = {
-    app: app,
-    loading: document.getElementById("dashboardLoading"),
-    overlay: document.getElementById("dashboardOverlay"),
-    sidebarToggle: document.getElementById("sidebarToggle"),
-    sidebarLinks: Array.prototype.slice.call(document.querySelectorAll(".sidebar-link")),
-    metricAvailable: document.getElementById("metricAvailableJobs"),
-    metricActive: document.getElementById("metricActiveJobs"),
-    metricScheduled: document.getElementById("metricScheduledJobs"),
-    metricCompleted: document.getElementById("metricCompletedJobs"),
-    sidebarAvailable: document.getElementById("sidebarAvailableCount"),
-    sidebarScheduled: document.getElementById("sidebarScheduledCount"),
-    sidebarUnread: document.getElementById("sidebarUnreadCount"),
-    sidebarServiceArea: document.getElementById("sidebarServiceArea"),
-    alertBadge: document.getElementById("topbarAlertBadge"),
-    alertCount: document.getElementById("topbarAvailableCount"),
-    tableBody: document.getElementById("requestsTableBody"),
-    availableJobsList: document.getElementById("availableJobsList"),
-    availableJobsCount: document.getElementById("availableJobsCount"),
-    pipelineLists: Array.prototype.slice.call(document.querySelectorAll(".pipeline-list")),
-    notificationsList: document.getElementById("notificationsList"),
-    notificationsCount: document.getElementById("notificationsCount"),
-    profileName: document.getElementById("profileName"),
-    profileRating: document.getElementById("profileRating"),
-    profileCompleted: document.getElementById("profileCompleted"),
-    profileActive: document.getElementById("profileActive"),
-    profileArea: document.getElementById("profileArea"),
-    profileServices: document.getElementById("profileServices"),
-    profileStatusBadge: document.getElementById("profileStatusBadge"),
-    detailsModal: document.getElementById("detailsModal"),
-    detailsClose: document.getElementById("detailsClose"),
-    topbarUser: document.getElementById("topbarUser"),
-    logoutButton: document.getElementById("logoutButton")
-  };
-
-  bindDashboardEvents(state, elements);
-  loadDashboardData(state, elements).finally(function () {
-    if (!state.redirecting) {
-      revealDashboard(elements);
-    }
-  });
-}
-
 async function loadDashboardData(state, elements) {
   try {
     state.loadError = "";
@@ -638,11 +821,10 @@ async function loadDashboardData(state, elements) {
     console.error("Failed to load dashboard data from API:", error);
 
     if (error && (error.status === 401 || error.status === 403)) {
-      state.redirecting = true;
-      if (apiClient && typeof apiClient.clearSession === "function") {
-        apiClient.clearSession();
-      }
-      redirectToLogin();
+      state.authUser = getCurrentAuthUser();
+      state.profile = null;
+      state.loadError = "Supabase login is working, but Render still needs to verify Supabase JWTs, map the Supabase user id, and provision local user rows before dashboard data can load.";
+      renderDashboard(state, elements);
       return;
     }
 
@@ -1462,5 +1644,3 @@ function escapeHtml(value) {
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-
-

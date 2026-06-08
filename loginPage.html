@@ -60,16 +60,16 @@
           <a class="login-back-link" href="index.html">Back to website</a>
           <p class="login-kicker">Welcome back</p>
           <h2 id="sign-in-heading">Sign in to your account</h2>
-          <p class="login-copy">Use your work email or username to access the Gingies dashboard and customer job queue.</p>
+          <p class="login-copy">Use your email address and password to access the Gingies dashboard and customer job queue.</p>
 
           <form id="loginForm" class="login-form" novalidate>
-            <label for="identifier">Email or username</label>
+            <label for="identifier">Email address</label>
             <input
               id="identifier"
               name="identifier"
-              type="text"
-              placeholder="name@gingieshomesolutions.com or username"
-              autocomplete="username"
+              type="email"
+              placeholder="name@gingieshomesolutions.com"
+              autocomplete="email"
               required
             >
 
@@ -91,7 +91,7 @@
               <a href="forgotpwd.html">Forgot password?</a>
             </div>
 
-            <button id="submit-btn" type="submit" class="submit-button login-submit">Sign in</button>
+            <button type="submit" class="submit-button login-submit">Sign in</button>
             <p id="loginMessage" class="form-message" role="status" aria-live="polite"></p>
           </form>
 
@@ -108,7 +108,8 @@
     </section>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/supabase.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/api.js"></script>
   <script src="js/script.js"></script>
 </body>
 </html>

@@ -1,20 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Forgot Password</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Request a Gingies Home Solutions password reset email.">
+  <title>Forgot Password | Gingies Home Solutions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
-<h1>Forgot Password?</h1>
+<body class="login-body">
+  <main class="login-page">
+    <section class="login-shell" aria-labelledby="forgot-password-heading">
+      <aside class="login-showcase" aria-label="Password recovery help">
+        <a class="login-brand" href="index.html" aria-label="Return to Gingies Home Solutions home">
+          <span class="logo-placeholder" aria-hidden="true">GH</span>
+          <span class="login-brand-copy">
+            <span class="login-brand-name">Gingies Home Solutions</span>
+            <span class="login-brand-tagline">Account Recovery</span>
+          </span>
+        </a>
 
+        <div class="login-intro">
+          <p class="login-eyebrow">Secure account recovery</p>
+          <h1 id="forgot-password-heading">Reset your password and get back into the Gingies portal.</h1>
+          <p class="login-lead">
+            Enter the email connected to your account and Supabase will send a recovery link.
+          </p>
+        </div>
 
-<label for="gmail">Email address:
-  <input id="email-input" type="email" placeholder="Enter your email address">
-</label>
-<button id="reset-btn" type="submit" class="submit-button login-submit">Submit</button>
-<p id="error-msg" aria-live="polite"></p>
+        <div class="login-showcase-content">
+          <div class="login-stats" aria-label="Recovery highlights">
+            <article class="login-stat">
+              <strong>Email link</strong>
+              <span>Delivered through Supabase Auth</span>
+            </article>
+            <article class="login-stat">
+              <strong>1 step</strong>
+              <span>Open the link and set a new password</span>
+            </article>
+          </div>
+
+          <div class="login-highlights">
+            <article class="login-highlight">
+              <p class="login-highlight-title">Request a reset</p>
+              <p>Use the same email address you use for your Gingies account.</p>
+            </article>
+            <article class="login-highlight">
+              <p class="login-highlight-title">Finish securely</p>
+              <p>The recovery link sends you to a dedicated password update screen.</p>
+            </article>
+          </div>
+        </div>
+      </aside>
+
+      <section class="login-panel" aria-labelledby="forgot-password-panel-heading">
+        <div class="login-card">
+          <a class="login-back-link" href="loginPage.html">Back to sign in</a>
+          <p class="login-kicker">Need password help?</p>
+          <h2 id="forgot-password-panel-heading">Request a reset link</h2>
+          <p class="login-copy">Use your account email and check your inbox for the password reset link.</p>
+
+          <div id="forgotPasswordRequestPanel">
+            <form id="forgotPasswordRequestForm" class="login-form" novalidate>
+              <label for="forgotPasswordEmail">Email address</label>
+              <input
+                id="forgotPasswordEmail"
+                name="email"
+                type="email"
+                placeholder="name@gingieshomesolutions.com"
+                autocomplete="email"
+                required
+              >
+
+              <button type="submit" class="submit-button login-submit">Send reset link</button>
+              <p id="forgotPasswordRequestMessage" class="form-message" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/script.js"></script>
 </body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/forgotpwd.js"></script>
-
 </html>

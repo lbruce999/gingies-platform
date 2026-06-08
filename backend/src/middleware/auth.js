@@ -10,7 +10,11 @@ export async function authOptional(req, res, next) {
       return next();
     }
 
+    // TODO(auth-bridge): This still verifies only Render-issued JWTs with config.jwtSecret.
+    // Extend or replace this with Supabase JWT verification before protected routes can trust Supabase access tokens.
     var decoded = jwt.verify(token, config.jwtSecret);
+    // TODO(auth-bridge): decoded.sub currently has to match a local users.id value.
+    // Add Supabase user-id mapping and local user provisioning before switching Render auth fully to Supabase.
     var user = await findActiveUser(decoded.sub);
     if (user) {
       req.user = user;
@@ -29,7 +33,11 @@ export async function authRequired(req, res, next) {
       throw httpError(401, "Authentication required");
     }
 
+    // TODO(auth-bridge): This still verifies only Render-issued JWTs with config.jwtSecret.
+    // Extend or replace this with Supabase JWT verification before protected routes can trust Supabase access tokens.
     var decoded = jwt.verify(token, config.jwtSecret);
+    // TODO(auth-bridge): decoded.sub currently has to match a local users.id value.
+    // Add Supabase user-id mapping and local user provisioning before switching Render auth fully to Supabase.
     var user = await findActiveUser(decoded.sub);
     if (!user) {
       throw httpError(401, "User account not found or inactive");

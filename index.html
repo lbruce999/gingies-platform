@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Gingies Home Solutions helps homeowners request repairs, maintenance, and improvement services through a clear guided intake.">
   <title>Gingies Home Solutions | Home Repairs and Improvements</title>
-  <link rel="icon" href="images/favicon-16x16.png">
+  <link rel="icon" href="images/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="images/favicon-16x16.png">
   <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -29,40 +30,93 @@
       <a href="index.html" class="active">Home</a>
       <a href="#services">Services</a>
       <a href="#quote">Request Service</a>
-      <a href="dashboard.html">Dashboard</a>
+      <a href="#how-it-works">How It Works</a>
     </nav>
   </div>
 </header>
 
 <main>
-  <section class="home-hero" aria-labelledby="hero-heading">
-    <div class="home-hero-content">
-      <p class="home-kicker">Gingies Home Solutions</p>
-      <h1 id="hero-heading">Tell us what your home needs. We will help get it moving.</h1>
-      <p class="home-hero-text">
-        Start with your address or ZIP code, choose the service, and send the details in a few focused steps.
-      </p>
-      <div class="home-hero-actions">
-        <a href="#quote" class="cta-button">Start a Service Request</a>
-        <a href="#how-it-works" class="home-secondary-link">See how it works</a>
+  <section class="home-hero home-hero-modern" aria-labelledby="hero-heading">
+    <div class="home-shell hero-modern-layout">
+      <div class="home-hero-content">
+        <p class="home-kicker">Gingies Home Solutions</p>
+        <div class="hero-badge-row" aria-label="Key service highlights">
+          <span class="hero-badge">Fast Requests</span>
+          <span class="hero-badge">Trusted Home Help</span>
+        </div>
+        <h1 id="hero-heading">Book home repairs and services through a cleaner, smarter request flow.</h1>
+        <p class="home-hero-text">
+          Start with your address or ZIP code, choose the type of help you need, and send a clear request in just a few steps.
+        </p>
+        <div class="home-hero-actions">
+          <a href="#quote" class="cta-button">Start a Service Request</a>
+          <a href="#services" class="home-secondary-link">Browse services</a>
+        </div>
+        <div class="hero-stat-grid" aria-label="Platform highlights">
+          <article class="hero-stat-card">
+            <span class="hero-stat-number">10+</span>
+            <p>Common home service categories</p>
+          </article>
+          <article class="hero-stat-card">
+            <span class="hero-stat-number">4</span>
+            <p>Quick steps from request to submit</p>
+          </article>
+          <article class="hero-stat-card">
+            <span class="hero-stat-number">1</span>
+            <p>Simple form built for homeowners</p>
+          </article>
+        </div>
+      </div>
+
+      <div class="hero-visual-card" aria-hidden="true">
+        <div class="hero-orb hero-orb-one"></div>
+        <div class="hero-orb hero-orb-two"></div>
+        <div class="hero-dashboard-preview">
+          <div class="hero-preview-topbar">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="hero-preview-panel hero-preview-panel-primary">
+            <p class="hero-preview-label">New Request</p>
+            <strong>Kitchen sink leak</strong>
+            <small>Youngstown, OH · Plumbing · This week</small>
+          </div>
+          <div class="hero-preview-grid">
+            <div class="hero-preview-panel">
+              <p class="hero-preview-label">Service</p>
+              <strong>Plumbing</strong>
+            </div>
+            <div class="hero-preview-panel">
+              <p class="hero-preview-label">Property</p>
+              <strong>Single family</strong>
+            </div>
+            <div class="hero-preview-panel">
+              <p class="hero-preview-label">Preferred Contact</p>
+              <strong>Text message</strong>
+            </div>
+            <div class="hero-preview-panel hero-preview-accent">
+              <p class="hero-preview-label">Status</p>
+              <strong>Ready to review</strong>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="home-trust-strip" aria-label="Service request benefits">
+  <section class="home-trust-strip home-trust-strip-modern" aria-label="Service request benefits">
     <div class="home-shell home-trust-grid">
-      <div>
-        <span class="home-trust-label">Fast Intake</span>
-        <strong>Focused questions, no endless form.</strong>
-      </div>
-      <div>
-        <span class="home-trust-label">Clear Details</span>
-        <strong>Every request starts with location, service, and urgency.</strong>
-      </div>
-      <div>
-        <span class="home-trust-label">Practical Follow-Up</span>
-        <strong>Your contact preference travels with the request.</strong>
-      </div>
+      <article class="trust-card">
+        <span class="home-trust-label">Simple Process</span>
+        <strong>Submit your request in a few clear steps.</strong>
+      </article>
+      <article class="trust-card">
+        <span class="home-trust-label">Better Details</span>
+        <strong>Location, service, urgency, and contact info are captured upfront.</strong>
+      </article>
+      <article class="trust-card">
+        <span class="home-trust-label">Modern Experience</span>
+        <strong>A polished mobile-first form that feels easier to use.</strong>
+      </article>
     </div>
   </section>
 
@@ -70,9 +124,9 @@
     <div class="home-shell intake-layout">
       <div class="intake-intro">
         <p class="home-kicker">Request Service</p>
-        <h2 id="quote-heading">Start with the basics. We will guide the rest.</h2>
+        <h2 id="quote-heading">Tell us about your project.</h2>
         <p>
-          Share where the work is, what needs attention, and how you want to be contacted.
+          Share the location, choose the service, describe the job, and leave your contact details for follow-up.
         </p>
       </div>
 
@@ -237,61 +291,129 @@
     </div>
   </section>
 
-  <section id="services" class="home-services" aria-labelledby="services-heading">
+  <section id="services" class="home-services home-services-modern" aria-labelledby="services-heading">
     <div class="home-shell">
-      <div class="section-heading">
-        <p class="home-kicker">Home Services</p>
-        <h2 id="services-heading">One request flow for the jobs homeowners actually need.</h2>
+      <div class="section-heading services-heading-modern">
+        <div>
+          <p class="home-kicker">Home Services</p>
+          <h2 id="services-heading">Common home services, one polished request experience.</h2>
+          <p class="section-lead">Built for real homeowner needs, from urgent fixes to everyday maintenance and improvement projects.</p>
+        </div>
+        <a href="#quote" class="home-secondary-link services-heading-link">Request Service</a>
       </div>
 
-      <div class="home-service-list">
-        <article><span class="service-mini-icon" data-icon="PL" aria-hidden="true"></span><h3>Plumbing</h3><p>Leaks, fixtures, drains, and practical water-line help.</p></article>
-        <article><span class="service-mini-icon" data-icon="EL" aria-hidden="true"></span><h3>Electrical</h3><p>Lighting, outlets, switches, and troubleshooting.</p></article>
-        <article><span class="service-mini-icon" data-icon="HV" aria-hidden="true"></span><h3>HVAC</h3><p>Heating, cooling, airflow, and comfort issues.</p></article>
-        <article><span class="service-mini-icon" data-icon="HM" aria-hidden="true"></span><h3>Handyman</h3><p>Small installs, everyday fixes, and home maintenance.</p></article>
+      <div class="home-service-list home-service-list-modern">
+        <article class="service-card-modern">
+          <span class="service-mini-icon" data-icon="PL" aria-hidden="true"></span>
+          <span class="service-card-tag">Most Requested</span>
+          <h3>Plumbing</h3>
+          <p>Leaks, fixtures, drains, clogs, and practical water-line help for common household issues.</p>
+        </article>
+        <article class="service-card-modern">
+          <span class="service-mini-icon" data-icon="EL" aria-hidden="true"></span>
+          <span class="service-card-tag">Home Essentials</span>
+          <h3>Electrical</h3>
+          <p>Lighting, outlets, switches, ceiling fans, and troubleshooting when something stops working right.</p>
+        </article>
+        <article class="service-card-modern">
+          <span class="service-mini-icon" data-icon="HV" aria-hidden="true"></span>
+          <span class="service-card-tag">Comfort & Climate</span>
+          <h3>HVAC</h3>
+          <p>Heating, cooling, airflow, and indoor comfort issues that need attention before they get worse.</p>
+        </article>
+        <article class="service-card-modern">
+          <span class="service-mini-icon" data-icon="HM" aria-hidden="true"></span>
+          <span class="service-card-tag">Everyday Repairs</span>
+          <h3>Handyman</h3>
+          <p>Small installs, punch-list items, mounting, patching, and general household fixes in one place.</p>
+        </article>
       </div>
     </div>
   </section>
 
-  <section id="how-it-works" class="home-process" aria-labelledby="process-heading">
-    <div class="home-shell process-layout">
+  <section id="how-it-works" class="home-process home-process-modern" aria-labelledby="process-heading">
+    <div class="home-shell process-layout process-layout-modern">
       <div class="section-heading">
         <p class="home-kicker">How It Works</p>
-        <h2 id="process-heading">Built for clear requests, not back-and-forth guessing.</h2>
+        <h2 id="process-heading">A simple, modern way to request help for your home.</h2>
+        <p class="section-lead">The form is designed to collect the right details early so the request feels cleaner, faster, and easier to review.</p>
       </div>
-      <ol class="process-steps">
-        <li><span>1</span><strong>Start with location</strong><p>Address or ZIP code tells us where the project is.</p></li>
-        <li><span>2</span><strong>Choose the service</strong><p>Pick the category and add what needs attention.</p></li>
-        <li><span>3</span><strong>Send the request</strong><p>Your details go to Gingies for review and follow-up.</p></li>
+      <ol class="process-steps process-steps-modern">
+        <li>
+          <span>1</span>
+          <div>
+            <strong>Start with location</strong>
+            <p>Enter the address or ZIP code so the request begins with the right service area and job location.</p>
+          </div>
+        </li>
+        <li>
+          <span>2</span>
+          <div>
+            <strong>Choose the service</strong>
+            <p>Select the closest category and add extra detail when the project needs a little more context.</p>
+          </div>
+        </li>
+        <li>
+          <span>3</span>
+          <div>
+            <strong>Describe the project</strong>
+            <p>Share what is happening, how urgent it is, and the type of property so the request starts stronger.</p>
+          </div>
+        </li>
+        <li>
+          <span>4</span>
+          <div>
+            <strong>Send and wait for follow-up</strong>
+            <p>Submit your request and Gingies can review the details and reach back out using your preferred contact method.</p>
+          </div>
+        </li>
       </ol>
     </div>
   </section>
 
-  <section class="home-proof" aria-labelledby="trust-heading">
-    <div class="home-shell proof-layout">
+  <section class="home-proof home-proof-modern" aria-labelledby="trust-heading">
+    <div class="home-shell proof-layout proof-layout-modern">
       <div>
-        <p class="home-kicker">Why Homeowners Use It</p>
-        <h2 id="trust-heading">A cleaner way to ask for help around the house.</h2>
+        <p class="home-kicker">Ready to Get Started?</p>
+        <h2 id="trust-heading">Submit your service request today.</h2>
+        <p class="section-lead">A cleaner first step for repairs, maintenance, and home projects that need a real follow-up.</p>
       </div>
-      <div class="proof-points">
-        <p><strong>Clear requests.</strong> The right details are captured before follow-up begins.</p>
-        <p><strong>No endless intake wall.</strong> Each step asks for the details needed to understand the job.</p>
-        <p><strong>No guesswork on follow-up.</strong> Urgency, property type, and contact preference are captured upfront.</p>
+      <div class="proof-points proof-points-modern">
+        <p><strong>Repairs, maintenance, and home projects.</strong> Tell us what you need and send it in one clean request.</p>
+        <p><strong>Better first contact.</strong> The form captures the details homeowners and contractors both care about.</p>
+        <p><strong>Built for clarity.</strong> Service type, urgency, property type, and contact preference are gathered before follow-up begins.</p>
+        <p><a href="#quote" class="cta-button">Start a Service Request</a></p>
       </div>
     </div>
   </section>
 </main>
 
-<footer class="site-footer">
-  <div class="footer-content">
-    <p class="footer-company">Gingies Home Solutions</p>
-    <p class="footer-tagline">Reliable repairs and honest workmanship for every home project.</p>
-    <p class="footer-contact">
-      Phone: <a href="tel:+15550190123">(555) 019-0123</a> |
-      Email: <a href="mailto:hello@gingieshomesolutions.com">hello@gingieshomesolutions.com</a>
-    </p>
-    <p class="footer-area">Service Area: Greater Metro Area</p>
-    <p class="footer-copy">&copy; 2026 Gingies Home Solutions. All rights reserved.</p>
+<footer class="site-footer site-footer-modern">
+  <div class="footer-content footer-content-modern">
+    <div class="footer-brand-block">
+      <p class="footer-company">Gingies Home Solutions</p>
+      <p class="footer-tagline">Reliable repairs and honest workmanship for the projects homeowners deal with every day.</p>
+    </div>
+
+    <div class="footer-links-grid">
+      <div>
+        <p class="footer-heading">Quick Links</p>
+        <p><a href="index.html">Home</a></p>
+        <p><a href="#services">Services</a></p>
+        <p><a href="#quote">Request Service</a></p>
+        <p><a href="#how-it-works">How It Works</a></p>
+      </div>
+      <div>
+        <p class="footer-heading">Contact</p>
+        <p class="footer-contact">Phone: <a href="tel:+15550190123">(555) 019-0123</a></p>
+        <p class="footer-contact">Email: <a href="mailto:hello@gingieshomesolutions.com">hello@gingieshomesolutions.com</a></p>
+        <p class="footer-area">Service Area: Greater Metro Area</p>
+      </div>
+    </div>
+
+    <div class="footer-bottom-row">
+      <p class="footer-copy">&copy; 2026 Gingies Home Solutions. All rights reserved.</p>
+    </div>
   </div>
 </footer>
 
